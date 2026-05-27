@@ -106,4 +106,152 @@ def run_next_step(is_randomized):
             st.session_state.history_pointer += 1
 
 def run_prev_step():
-    if st.session_state.history
+    if st.session_state.history_pointer > 0:
+        st.session_state.history_pointer -= 1
+        st.session_state.completed_sequential = False
+
+def reset_deck_session():
+    st.session_state.history_stack = [0]
+    st.session_state.history_pointer = 0
+    st.session_state.completed_sequential = False
+
+# ==============================================================================
+# 5. STREAMLINED UI DISPLAY (MOBILE OPTIMIZED)
+# ==============================================================================
+# Pull explicit column names directly from your Google Sheet headers
+lang_1_header = str(df.columns[1]).strip()
+lang_2_header = str(df.columns[2]).strip()
+
+selected_first_lang = st.selectbox(
+    "Show First:", 
+    options=[lang_1_header, lang_2_header],
+    index=0
+)
+display_mode = (selected_first_lang == lang_1_header)
+
+if st.session_state.completed_sequential:
+    st.warning("🎉 **End of Deck Reached!** You have walked sequentially through every single card in this list.")
+    if st.button("🔄 Start This Deck Over Again", use_container_width=True):
+        reset_deck_session()
+        st.rerun()
+else:
+    active_row = df.iloc[current_row_idx]
+    
+    # Safe text conversions to protect against unexpected types
+    card_chapter = str(active_row.iloc[0]) if pd.notna(active_row.iloc[0]) else "General"
+    card_lang_1  = str(active_row.iloc[1]) if pd.notna(active_row.iloc[1]) else ""
+    card_lang_2  = str(active_row.iloc[2]) if pd.notna(active_row.iloc[2]) else ""
+    
+    # 4th Column check: Phonetics/Pinyin (Index 3, Column D)
+    has_phonetics_col = len(active_row) > 3
+    card_phonetics = str(active_row.iloc[3]).strip() if (has_phonetics_col and pd.notna(active_row.iloc[3])) else ""
+    
+    # 5th Column check: Comments/Footnotes (Index 4, Column E)
+    card_comment = str(active_row.iloc[4]).strip() if (len(active_row) > 4 and pd.notna(active_row.iloc[4])) else ""
+    
+    # Check if the phonetics column contains actual data anywhere across the dataset
+    show_phonetics_option = False
+    if has_phonetics_col:
+        has_real_data = df.iloc[:, 3].dropna().astype(str).str.strip().str.len().gt(0).any()
+        if has_real_data:
+            show_phonetics_option = True
+
+    # High-density checkbox settings bar
+    col_ans, col_rand, col_phon = st.columns([1.1, 0.9, 1.0])
+    with col_ans:
+        reveal_answer = st.checkbox("Show Answer", value=False)
+    with col_rand:
+        random_mode = st.checkbox("Random", value=False)
+    with col_phon:
+        if show_phonetics_option:
+            st.checkbox("Phonetics", key="toggle_phonetics")
+
+    # Map text hierarchy positions based on dropdown choice
+    top_display_text = card_lang_1 if display_mode else card_lang_2
+    bottom_display_text = card_lang_2 if display_mode else card_lang_1
+
+    try:
+        font_size = int(deck_config.get("font_size_px", 28))
+    except (ValueError, TypeError):
+        font_size = 28
+
+    answer_html = f"<div style='color: #FF4B4B; font-size: 22px; margin-top: 10px; font-weight: 500;'>{bottom_display_text}</div>" if reveal_answer else ""
+    phonetics_html = f"<div style='color: #888888; font-size: 15px; margin-top: 12px;'>🗣️ {card_phonetics}</div>" if (show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics) else ""
+
+    # Fixed-height canvas frame document utilizing native device color schemes
+    card_content_html = f"""
+    <style>
+        .card-canvas {{
+            background-color: #1E1E1E; /* Core Dark Theme */
+            border: 2px solid #36393F;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }}
+        .main-text {{
+            font-size: {font_size}px; 
+            font-weight: bold; 
+            color: #FFFFFF; 
+            line-height: 1.2;
+        }}
+        @media (prefers-color-scheme: light) {{
+            .card-canvas {{
+                background-color: #F0F2F6; /* Core Light Theme */
+                border-color: #E0E2E6;
+            }}
+            .main-text {{
+                color: #111111;
+            }}
+        }}
+    </style>
+
+    <div class="card-canvas">
+        <div class="main-text">{top_display_text}</div>
+        {answer_html}
+        {phonetics_html}
+    </div>
+    """
+    components.html(card_content_html, height=146)
+
+    # 🔊 FIXED AUDIO PLAYER: Always reads card_lang_1 (Foreign String)
+    lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
+    safe_speech_text = card_lang_1.replace("'", "\\'")
+    
+    tts_html = f"""
+    <div style="text-align: center; margin-bottom: 5px;">
+        <button onclick="speakText()" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;">🔊</button>
+    </div>
+    <script>
+    function speakText() {{
+        if ('speechSynthesis' in window) {{
+            window.speechSynthesis.cancel();
+            var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
+            utterance.lang = '{lang_code}';
+            utterance.rate = 0.85;
+            window.speechSynthesis.speak(utterance);
+        }}
+    }}
+    </script>
+    """
+    components.html(tts_html, height=44)
+
+    if reveal_answer and card_comment != "":
+        st.info(f"💡 **Note:** {card_comment}")
+
+    # Solid navigation row using native Streamlit column sizing
+    nav_col1, nav_col2 = st.columns(2)
+    with nav_col1:
+        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
+    with nav_col2:
+        st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
+
+    # Native, centered bottom index string tracker
+    st.caption(f"Card {current_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}")
