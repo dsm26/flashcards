@@ -4,6 +4,7 @@ import random
 import time
 import toml
 import urllib.parse
+import streamlit.components.v1 as components
 
 # Force layout optimization for mobile viewports
 st.set_page_config(page_title="Language Flashcards", page_icon="🎴", layout="centered")
@@ -72,7 +73,6 @@ if "current_deck_id" not in st.session_state or st.session_state.current_deck_id
     st.session_state.current_deck_id = deck_config["id"]
     st.session_state.history_stack = [0]       
     st.session_state.history_pointer = 0       
-    st.session_state.flipped = False
     st.session_state.completed_sequential = False
 
 total_rows = len(df)
@@ -90,7 +90,6 @@ if current_row_idx >= total_rows:
     current_row_idx = 0
 
 def run_next_step(is_randomized):
-    st.session_state.flipped = False
     if st.session_state.history_pointer < len(st.session_state.history_stack) - 1:
         st.session_state.history_pointer += 1
     else:
@@ -109,17 +108,15 @@ def run_next_step(is_randomized):
 def run_prev_step():
     if st.session_state.history_pointer > 0:
         st.session_state.history_pointer -= 1
-        st.session_state.flipped = False
         st.session_state.completed_sequential = False
 
 def reset_deck_session():
     st.session_state.history_stack = [0]
     st.session_state.history_pointer = 0
-    st.session_state.flipped = False
     st.session_state.completed_sequential = False
 
 # ==============================================================================
-# 5. STREAMLINED UI RENDERING (COMPACT MOBILE VIEW)
+# 5. FIXED-HEIGHT DISPLAY RENDERING (CROSS-PLATFORM SAFE)
 # ==============================================================================
 display_mode = st.toggle("Display Language 1 First", value=True)
 
@@ -131,7 +128,7 @@ if st.session_state.completed_sequential:
 else:
     active_row = df.iloc[current_row_idx]
     
-    # Core variables mapping safely
+    # Core variables mapping safely with defensive casting against numerical types
     card_chapter = str(active_row.iloc[0]) if pd.notna(active_row.iloc[0]) else "General"
     card_lang_1  = str(active_row.iloc[1]) if pd.notna(active_row.iloc[1]) else ""
     card_lang_2  = str(active_row.iloc[2]) if pd.notna(active_row.iloc[2]) else ""
@@ -143,54 +140,106 @@ else:
     # 5th Column check: Comments/Footnotes (Index 4, Column E)
     card_comment = str(active_row.iloc[4]).strip() if (len(active_row) > 4 and pd.notna(active_row.iloc[4])) else ""
     
-    # Evaluate global availability of data inside the Phonetics column across the entire sheet
-    # Only displays the checkbox if the column exists and has actual data somewhere in it
+    # Evaluate phonetics configuration availability across the sheet dynamically
     show_phonetics_option = False
     if has_phonetics_col:
-        # Check if column 3 has any valid non-null entries anywhere
         has_real_data = df.iloc[:, 3].dropna().astype(str).str.strip().str.len().gt(0).any()
         if has_real_data:
             show_phonetics_option = True
 
-    is_front = (display_mode and not st.session_state.flipped) or (not display_mode and st.session_state.flipped)
-    display_heading = card_lang_1 if is_front else card_lang_2
-
-    # Clean, bordered card canvas
-    with st.container(border=True):
-        try:
-            user_font_size = int(deck_config.get("font_size_px", 28))
-        except (ValueError, TypeError):
-            user_font_size = 28
-        
-        # Render the primary text
-        if user_font_size >= 36:
-            st.title(f"{display_heading}")
-        else:
-            st.subheader(f"{display_heading}")
-            
-        # Render the optional phonetics layer if conditions match
-        # It displays only on the "Native/Language 1" side of the card, and only when toggled on
-        if is_front and show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics:
-            st.caption(f"🗣️ {card_phonetics}")
-
-    # Display optional footnotes safely
-    if st.session_state.flipped and card_comment != "":
-        st.info(f"💡 **Note:** {card_comment}")
-
-    if st.button("🔄 Flip Card", use_container_width=True, type="primary"):
-        st.session_state.flipped = not st.session_state.flipped
-        st.rerun()
-
-    # Layout multi-control flags beneath card tightly
-    col_rand, col_phon = st.columns(2)
+    # Compact configuration control flags grouped into a single layout row
+    col_ans, col_rand, col_phon = st.columns([1.2, 0.9, 0.9])
+    with col_ans:
+        reveal_answer = st.checkbox("Show Answer", value=False)
     with col_rand:
-        random_mode = st.checkbox("Randomized Shuffle", value=False)
+        random_mode = st.checkbox("Random", value=False)
     with col_phon:
         if show_phonetics_option:
-            # Save toggle choice to session state so it persists across cards smoothly
-            st.checkbox("Show Phonetics", key="toggle_phonetics")
+            st.checkbox("Phonetics", key="toggle_phonetics")
 
-    # Clean layout controls grid
+    # Resolve specific layout font dimension limits
+    try:
+        font_size = int(deck_config.get("font_size_px", 28))
+    except (ValueError, TypeError):
+        font_size = 28
+
+    # Build internal card sub-components based on user interface preferences
+    answer_html = f"<div style='color: #FF4B4B; font-size: 22px; margin-top: 10px; font-weight: 500;'>{card_lang_2}</div>" if reveal_answer else ""
+    phonetics_html = f"<div style='color: #888888; font-size: 15px; margin-top: 12px;'>🗣️ {card_phonetics}</div>" if (show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics) else ""
+
+    # Self-contained layout document with hardcoded light/dark native browser adjustments
+    card_content_html = f"""
+    <style>
+        .card-canvas {{
+            background-color: #1E1E1E; /* Default Dark Mode Background */
+            border: 2px solid #36393F;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }}
+        .main-text {{
+            font-size: {font_size}px; 
+            font-weight: bold; 
+            color: #FFFFFF; 
+            line-height: 1.2;
+        }}
+        /* Native iOS theme hook overrides when device is flipped to Light Mode */
+        @media (prefers-color-scheme: light) {{
+            .card-canvas {{
+                background-color: #F0F2F6; 
+                border-color: #E0E2E6;
+            }}
+            .main-text {{
+                color: #111111;
+            }}
+        }}
+    </style>
+
+    <div class="card-canvas">
+        <div class="main-text">{card_lang_1}</div>
+        {answer_html}
+        {phonetics_html}
+    </div>
+    """
+    # Render frozen canvas shell inside an independent sandbox frame
+    components.html(card_content_html, height=146)
+
+    # 🔊 NATIVE TEXT-TO-SPEECH ICON BUTTON ENGINE
+    lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
+    speech_target = card_lang_2 if reveal_answer else card_lang_1
+    safe_speech_text = speech_target.replace("'", "\\'")
+    
+    tts_html = f"""
+    <div style="text-align: center; margin-bottom: 5px;">
+        <button onclick="speakText()" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;">🔊</button>
+    </div>
+    <script>
+    function speakText() {{
+        if ('speechSynthesis' in window) {{
+            window.speechSynthesis.cancel();
+            var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
+            utterance.lang = '{lang_code}';
+            utterance.rate = 0.85;
+            window.speechSynthesis.speak(utterance);
+        }}
+    }}
+    </script>
+    """
+    components.html(tts_html, height=44)
+
+    # Display optional footnotes safely beneath audio engine when card is revealed
+    if reveal_answer and card_comment != "":
+        st.info(f"💡 **Note:** {card_comment}")
+
+    # Clean navigation buttons controls grid
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
