@@ -118,7 +118,17 @@ def reset_deck_session():
 # ==============================================================================
 # 5. FIXED-HEIGHT DISPLAY RENDERING (CROSS-PLATFORM SAFE)
 # ==============================================================================
-display_mode = st.toggle("Display Language 1 First", value=True)
+# Extract exact language names dynamically from your Google Sheet column headers
+lang_1_header = str(df.columns[1]).strip()
+lang_2_header = str(df.columns[2]).strip()
+
+# Dynamic selectbox replacing the old toggle switch
+selected_first_lang = st.selectbox(
+    "Show First:", 
+    options=[lang_1_header, lang_2_header],
+    index=0
+)
+display_mode = (selected_first_lang == lang_1_header)
 
 if st.session_state.completed_sequential:
     st.warning("🎉 **End of Deck Reached!** You have walked sequentially through every single card in this list.")
@@ -157,6 +167,10 @@ else:
         if show_phonetics_option:
             st.checkbox("Phonetics", key="toggle_phonetics")
 
+    # Determine layout text hierarchy based on dropdown selection
+    top_display_text = card_lang_1 if display_mode else card_lang_2
+    bottom_display_text = card_lang_2 if display_mode else card_lang_1
+
     # Resolve specific layout font dimension limits
     try:
         font_size = int(deck_config.get("font_size_px", 28))
@@ -164,7 +178,7 @@ else:
         font_size = 28
 
     # Build internal card sub-components based on user interface preferences
-    answer_html = f"<div style='color: #FF4B4B; font-size: 22px; margin-top: 10px; font-weight: 500;'>{card_lang_2}</div>" if reveal_answer else ""
+    answer_html = f"<div style='color: #FF4B4B; font-size: 22px; margin-top: 10px; font-weight: 500;'>{bottom_display_text}</div>" if reveal_answer else ""
     phonetics_html = f"<div style='color: #888888; font-size: 15px; margin-top: 12px;'>🗣️ {card_phonetics}</div>" if (show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics) else ""
 
     # Self-contained layout document with hardcoded light/dark native browser adjustments
@@ -204,7 +218,7 @@ else:
     </style>
 
     <div class="card-canvas">
-        <div class="main-text">{card_lang_1}</div>
+        <div class="main-text">{top_display_text}</div>
         {answer_html}
         {phonetics_html}
     </div>
@@ -212,10 +226,9 @@ else:
     # Render frozen canvas shell inside an independent sandbox frame
     components.html(card_content_html, height=146)
 
-    # 🔊 NATIVE TEXT-TO-SPEECH ICON BUTTON ENGINE
+    # 🔊 FIXED AUDIO ENGINE: Always targets card_lang_1 (Foreign Word)
     lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
-    speech_target = card_lang_2 if reveal_answer else card_lang_1
-    safe_speech_text = speech_target.replace("'", "\\'")
+    safe_speech_text = card_lang_1.replace("'", "\\'")
     
     tts_html = f"""
     <div style="text-align: center; margin-bottom: 5px;">
