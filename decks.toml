@@ -1,0 +1,14 @@
+[[decks]]
+id = "it_basic"
+display_name = "Italian: Vocabulary & Idioms"
+spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
+worksheet_name = "Language Transfer"
+font_size_px = 26
+
+[[decks]]
+id = "zh_hsk1"
+display_name = "Chinese: HSK 1 Core Characters"
+spreadsheet_id = "1A2b3C4d5E6f_REPLACE_WITH_YOUR_ACTUAL_ID"
+worksheet_name = "Core_List"
+font_size_px = 42 # Large font configuration for mobile readability
+
