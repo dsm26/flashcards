@@ -119,7 +119,7 @@ def reset_deck_session():
     st.session_state.completed_sequential = False
 
 # ==============================================================================
-# 5. STREAMLINED UI RENDERING
+# 5. STREAMLINED UI RENDERING (COMPACT MOBILE VIEW)
 # ==============================================================================
 display_mode = st.toggle("Display Language 1 First", value=True)
 
@@ -131,15 +131,16 @@ if st.session_state.completed_sequential:
 else:
     active_row = df.iloc[current_row_idx]
     
-    card_chapter = active_row.iloc[0]  
-    card_lang_1  = active_row.iloc[1]  
-    card_lang_2  = active_row.iloc[2]  
+    # Defensive data casting to protect against compiler type crashes
+    card_chapter = str(active_row.iloc[0]) if pd.notna(active_row.iloc[0]) else "General"
+    card_lang_1  = str(active_row.iloc[1]) if pd.notna(active_row.iloc[1]) else ""
+    card_lang_2  = str(active_row.iloc[2]) if pd.notna(active_row.iloc[2]) else ""
     card_comment = active_row.iloc[3] if len(active_row) > 3 else ""
     
     is_front = (display_mode and not st.session_state.flipped) or (not display_mode and st.session_state.flipped)
     display_heading = card_lang_1 if is_front else card_lang_2
 
-    # NATIVE STREAMLIT BORDERED BOX (No pins, labels, or extra headers)
+    # Clean, bordered card canvas
     with st.container(border=True):
         try:
             user_font_size = int(deck_config.get("font_size_px", 28))
@@ -159,15 +160,15 @@ else:
         st.session_state.flipped = not st.session_state.flipped
         st.rerun()
 
-    # Consolidated Ordering Checkbox (Placed immediately beneath the flip control)
+    # Compact configuration control
     random_mode = st.checkbox("Randomized Shuffle", value=False)
 
-    # Navigation interface mapping grid
+    # Clean layout controls grid
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
     with nav_col2:
         st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
-    # Streamlined metadata string positioned at the absolute bottom
-    st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.85em; margin-top: 15px;'>Card {current_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}</p>", unsafe_allowed_html=True)
+    # Native, centered text tracker at the absolute bottom
+    st.caption(f"Card {current_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}")
