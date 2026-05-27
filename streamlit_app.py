@@ -9,6 +9,25 @@ import streamlit.components.v1 as components
 # Force layout optimization for mobile viewports
 st.set_page_config(page_title="Language Flashcards", page_icon="🎴", layout="centered")
 
+# Global style override for the top control checkboxes row
+st.markdown(
+    """
+    <style>
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        width: 100% !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # ==============================================================================
 # 1. READ CONFIGURATION FILE (FROM GITHUB)
 # ==============================================================================
@@ -246,12 +265,72 @@ else:
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
-    # Solid navigation row using native Streamlit column sizing
-    nav_col1, nav_col2 = st.columns(2)
-    with nav_col1:
-        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
-    with nav_col2:
-        st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
+    # ==============================================================================
+    # 6. BULLETPROOF EMBEDDED BUTTON ENGINE (FORCES SIDE-BY-SIDE VIEW)
+    # ==============================================================================
+    # Set up hidden form parameters to catch click intents from the sandbox
+    if "btn_click" not in st.session_state:
+        st.session_state.btn_click = 0
+
+    col_btn_trigger = st.empty()
+    
+    # Simple query string parameter catcher to execute our steps
+    query_params = st.query_params
+    if "nav" in query_params:
+        action = query_params["nav"]
+        st.query_params.clear() # Clear immediately to stop infinite loop refreshes
+        if action == "prev":
+            run_prev_step()
+            st.rerun()
+        elif action == "next":
+            run_next_step(random_mode)
+            st.rerun()
+
+    is_prev_disabled = "true" if current_pointer == 0 else "false"
+
+    nav_html = f"""
+    <div style="
+        display: flex; 
+        gap: 12px; 
+        width: 100%; 
+        box-sizing: border-box;
+    ">
+        <button onclick="window.parent.location.href = window.parent.location.pathname + '?nav=prev';" 
+                style="
+                    flex: 1; 
+                    padding: 14px; 
+                    font-size: 16px; 
+                    font-weight: bold;
+                    border-radius: 8px; 
+                    border: 1px solid #36393F;
+                    background-color: #262730; 
+                    color: #FFFFFF;
+                    cursor: pointer;
+                    touch-action: manipulation;
+                "
+                {"disabled style='opacity: 0.25; cursor: not-allowed;'" if is_prev_disabled == "true" else ""}>
+            ⬅️ Previous
+        </button>
+        
+        <button onclick="window.parent.location.href = window.parent.location.pathname + '?nav=next';" 
+                style="
+                    flex: 1; 
+                    padding: 14px; 
+                    font-size: 16px; 
+                    font-weight: bold;
+                    border-radius: 8px; 
+                    border: none;
+                    background-color: #FF4B4B; 
+                    color: #FFFFFF;
+                    cursor: pointer;
+                    touch-action: manipulation;
+                ">
+            Next ➡️
+        </button>
+    </div>
+    """
+    # Render the structural layout block outside of Streamlit layout rules entirely
+    components.html(nav_html, height=56)
 
     # Native, centered bottom index string tracker
     st.caption(f"Card {current_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}")
