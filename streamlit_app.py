@@ -131,12 +131,27 @@ if st.session_state.completed_sequential:
 else:
     active_row = df.iloc[current_row_idx]
     
-    # Defensive data casting to protect against compiler type crashes
+    # Core variables mapping safely
     card_chapter = str(active_row.iloc[0]) if pd.notna(active_row.iloc[0]) else "General"
     card_lang_1  = str(active_row.iloc[1]) if pd.notna(active_row.iloc[1]) else ""
     card_lang_2  = str(active_row.iloc[2]) if pd.notna(active_row.iloc[2]) else ""
-    card_comment = active_row.iloc[3] if len(active_row) > 3 else ""
     
+    # 4th Column check: Phonetics/Pinyin (Index 3, Column D)
+    has_phonetics_col = len(active_row) > 3
+    card_phonetics = str(active_row.iloc[3]).strip() if (has_phonetics_col and pd.notna(active_row.iloc[3])) else ""
+    
+    # 5th Column check: Comments/Footnotes (Index 4, Column E)
+    card_comment = str(active_row.iloc[4]).strip() if (len(active_row) > 4 and pd.notna(active_row.iloc[4])) else ""
+    
+    # Evaluate global availability of data inside the Phonetics column across the entire sheet
+    # Only displays the checkbox if the column exists and has actual data somewhere in it
+    show_phonetics_option = False
+    if has_phonetics_col:
+        # Check if column 3 has any valid non-null entries anywhere
+        has_real_data = df.iloc[:, 3].dropna().astype(str).str.strip().str.len().gt(0).any()
+        if has_real_data:
+            show_phonetics_option = True
+
     is_front = (display_mode and not st.session_state.flipped) or (not display_mode and st.session_state.flipped)
     display_heading = card_lang_1 if is_front else card_lang_2
 
@@ -147,21 +162,33 @@ else:
         except (ValueError, TypeError):
             user_font_size = 28
         
+        # Render the primary text
         if user_font_size >= 36:
             st.title(f"{display_heading}")
         else:
             st.subheader(f"{display_heading}")
+            
+        # Render the optional phonetics layer if conditions match
+        # It displays only on the "Native/Language 1" side of the card, and only when toggled on
+        if is_front and show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics:
+            st.caption(f"🗣️ {card_phonetics}")
 
     # Display optional footnotes safely
-    if st.session_state.flipped and pd.notna(card_comment) and str(card_comment).strip() != "":
+    if st.session_state.flipped and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
     if st.button("🔄 Flip Card", use_container_width=True, type="primary"):
         st.session_state.flipped = not st.session_state.flipped
         st.rerun()
 
-    # Compact configuration control
-    random_mode = st.checkbox("Randomized Shuffle", value=False)
+    # Layout multi-control flags beneath card tightly
+    col_rand, col_phon = st.columns(2)
+    with col_rand:
+        random_mode = st.checkbox("Randomized Shuffle", value=False)
+    with col_phon:
+        if show_phonetics_option:
+            # Save toggle choice to session state so it persists across cards smoothly
+            st.checkbox("Show Phonetics", key="toggle_phonetics")
 
     # Clean layout controls grid
     nav_col1, nav_col2 = st.columns(2)
