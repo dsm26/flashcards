@@ -9,19 +9,29 @@ import streamlit.components.v1 as components
 # Force layout optimization for mobile viewports
 st.set_page_config(page_title="Language Flashcards", page_icon="🎴", layout="centered")
 
-# Global style override for the top control checkboxes row
+# ==============================================================================
+# INDESTRUCTIBLE MOBILE GRID OVERRIDE (FORCES ALL COLUMNS SIDE-BY-SIDE ON IPHONES)
+# ==============================================================================
 st.markdown(
     """
     <style>
-    div[data-testid="stHorizontalBlock"] {
+    /* Target all variations of Streamlit horizontal column layouts */
+    div[data-testid="stHorizontalBlock"], 
+    .stHorizontalBlock, 
+    div[data-fieldname="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         width: 100% !important;
+        gap: 10px !important;
     }
-    div[data-testid="stHorizontalBlock"] > div {
-        width: 100% !important;
+    
+    /* Force column items to evenly split the row instead of snapping to full width */
+    div[data-testid="stHorizontalBlock"] > div,
+    .stHorizontalBlock > div {
+        flex: 1 1 0% !important;
         min-width: 0 !important;
+        width: 100% !important;
     }
     </style>
     """,
@@ -175,8 +185,8 @@ else:
         if has_real_data:
             show_phonetics_option = True
 
-    # High-density checkbox settings bar
-    col_ans, col_rand, col_phon = st.columns([1.1, 0.9, 1.0])
+    # High-density checkbox settings bar (Forced side-by-side by CSS block)
+    col_ans, col_rand, col_phon = st.columns(3)
     with col_ans:
         reveal_answer = st.checkbox("Show Answer", value=False)
     with col_rand:
@@ -265,72 +275,12 @@ else:
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
-    # ==============================================================================
-    # 6. BULLETPROOF EMBEDDED BUTTON ENGINE (FORCES SIDE-BY-SIDE VIEW)
-    # ==============================================================================
-    # Set up hidden form parameters to catch click intents from the sandbox
-    if "btn_click" not in st.session_state:
-        st.session_state.btn_click = 0
-
-    col_btn_trigger = st.empty()
-    
-    # Simple query string parameter catcher to execute our steps
-    query_params = st.query_params
-    if "nav" in query_params:
-        action = query_params["nav"]
-        st.query_params.clear() # Clear immediately to stop infinite loop refreshes
-        if action == "prev":
-            run_prev_step()
-            st.rerun()
-        elif action == "next":
-            run_next_step(random_mode)
-            st.rerun()
-
-    is_prev_disabled = "true" if current_pointer == 0 else "false"
-
-    nav_html = f"""
-    <div style="
-        display: flex; 
-        gap: 12px; 
-        width: 100%; 
-        box-sizing: border-box;
-    ">
-        <button onclick="window.parent.location.href = window.parent.location.pathname + '?nav=prev';" 
-                style="
-                    flex: 1; 
-                    padding: 14px; 
-                    font-size: 16px; 
-                    font-weight: bold;
-                    border-radius: 8px; 
-                    border: 1px solid #36393F;
-                    background-color: #262730; 
-                    color: #FFFFFF;
-                    cursor: pointer;
-                    touch-action: manipulation;
-                "
-                {"disabled style='opacity: 0.25; cursor: not-allowed;'" if is_prev_disabled == "true" else ""}>
-            ⬅️ Previous
-        </button>
-        
-        <button onclick="window.parent.location.href = window.parent.location.pathname + '?nav=next';" 
-                style="
-                    flex: 1; 
-                    padding: 14px; 
-                    font-size: 16px; 
-                    font-weight: bold;
-                    border-radius: 8px; 
-                    border: none;
-                    background-color: #FF4B4B; 
-                    color: #FFFFFF;
-                    cursor: pointer;
-                    touch-action: manipulation;
-                ">
-            Next ➡️
-        </button>
-    </div>
-    """
-    # Render the structural layout block outside of Streamlit layout rules entirely
-    components.html(nav_html, height=56)
+    # Pure, native Streamlit navigation buttons row (Forced side-by-side by CSS layout engine)
+    nav_col1, nav_col2 = st.columns(2)
+    with nav_col1:
+        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
+    with nav_col2:
+        st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
     # Native, centered bottom index string tracker
     st.caption(f"Card {current_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}")
