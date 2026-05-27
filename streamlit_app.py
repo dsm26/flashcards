@@ -5,16 +5,16 @@ import time
 import toml
 import urllib.parse
 
-# Force layout optimization for mobile viewport frames
+# Force layout optimization for mobile viewport frames (like iPhones)
 st.set_page_config(page_title="Language Flashcards", page_icon="🎴", layout="centered")
 
 # ==============================================================================
-# 1. READ PUBLIC CONFIGURATION (FROM CONFIG FILE)
+# 1. READ CONFIGURATION FILE (FROM GITHUB)
 # ==============================================================================
 try:
     config_data = toml.load("decks.toml")
 except Exception as e:
-    st.error(f"❌ Error reading 'decks.toml' configuration file. Ensure the file exists in the same folder. Technical Details: {str(e)}")
+    st.error(f"❌ Error reading 'decks.toml' configuration file. Ensure the file exists in your repository root. Technical Details: {str(e)}")
     st.stop()
 
 # ==============================================================================
@@ -52,13 +52,18 @@ if st.sidebar.button("🔄 Force Reload From Google Sheets"):
     st.cache_data.clear()
     st.rerun()
 
-# Run connection data pipeline with explicit error catching
+# Run connection data pipeline with defensive error catching
 try:
     df, load_duration = load_vocab_sheet(
         deck_config["spreadsheet_id"], 
         deck_config["worksheet_name"]
     )
     
+    # 🚨 CRASH PROTECTION check: Ensure the dataset returned isn't empty or null
+    if df is None or df.empty:
+        st.error(f"❌ Data Error: The tab '{deck_config['worksheet_name']}' was read successfully, but it contains 0 rows of data. Please verify your sheet content.")
+        st.stop()
+        
     # Structural Validation Check (Requires Chapter, Lang 1, Lang 2)
     if df.shape[1] < 3:
         st.error(f"❌ Spreadsheet Schema Error: The selected tab '{deck_config['worksheet_name']}' contains only {df.shape[1]} columns. It requires at least 3 columns to operate.")
@@ -90,7 +95,19 @@ display_mode = st.toggle("Display Language 1 First", value=True)
 
 total_rows = len(df)
 current_pointer = st.session_state.history_pointer
+
+# Boundary check to prevent session state desync out-of-bounds crashes
+if current_pointer >= len(st.session_state.history_stack):
+    st.session_state.history_pointer = len(st.session_state.history_stack) - 1
+    current_pointer = st.session_state.history_pointer
+
 current_row_idx = st.session_state.history_stack[current_pointer]
+
+# If a dataset was shrunk mid-session, force pointer back to safe limits
+if current_row_idx >= total_rows:
+    st.session_state.history_stack = [0]
+    st.session_state.history_pointer = 0
+    current_row_idx = 0
 
 def run_next_step():
     st.session_state.flipped = False
@@ -127,13 +144,17 @@ def reset_deck_session():
     st.session_state.completed_sequential = False
 
 # ==============================================================================
-# 5. MOBILE APP DISPLAY RENDERING (CSS TRICKS)
+# 5. MOBILE APP DISPLAY RENDERING (CSS STYLE MANAGEMENT)
 # ==============================================================================
 st.write("---")
 st.markdown(f"**Card Session Tracker:** Card #{current_pointer + 1} viewed | Mapped Row {current_row_idx + 1} of {total_rows}")
 
-# Inject adaptive css styling based on configuration constraints for font sizing
-card_font_size = deck_config.get("font_size_px", 28)
+# Safely extract and format font sizing from configuration configurations with fallbacks
+try:
+    card_font_size = int(deck_config.get("font_size_px", 28))
+except (ValueError, TypeError):
+    card_font_size = 28
+
 st.markdown(f"""
     <style>
     .flashcard-frame {{
@@ -163,14 +184,14 @@ if st.session_state.completed_sequential:
         reset_deck_session()
         st.rerun()
 else:
-    # Read row parameters using strict numerical index assignments
+    # Read row parameters safely using strict numerical index locations
     active_row = df.iloc[current_row_idx]
     
     card_chapter = active_row.iloc[0]  # Column 1 (Index 0)
     card_lang_1  = active_row.iloc[1]  # Column 2 (Index 1)
     card_lang_2  = active_row.iloc[2]  # Column 3 (Index 2)
     
-    # Catch optional comments row block if it exists
+    # Catch optional comments row block if it exists safely
     card_comment = active_row.iloc[3] if len(active_row) > 3 else ""
 
     st.caption(f"📂 Section / Grouping: **{card_chapter}**")
@@ -188,18 +209,4 @@ else:
         </div>
     """, unsafe_allowed_html=True)
 
-    # Display target footnotes exclusively if flipped open and valid
-    if st.session_state.flipped and pd.notna(card_comment) and str(card_comment).strip() != "":
-        st.info(f"💡 **Note:** {card_comment}")
-
-    if st.button("🔄 Flip Card", use_container_width=True, type="primary"):
-        st.session_state.flipped = not st.session_state.flipped
-        st.rerun()
-
-    # Nav Control Array Matrix
-    nav_col1, nav_col2 = st.columns(2)
-    with nav_col1:
-        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
-    with nav_col2:
-        st.button("Next ➡️", use_container_width=True, on_click=run_next_step)
-
+    # Display
