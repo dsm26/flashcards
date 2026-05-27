@@ -1,8 +1,15 @@
 [[decks]]
 id = "it_basic"
-display_name = "Italian: Vocabulary & Idioms"
+display_name = "Italian: Language Transfer"
 spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
 worksheet_name = "Language Transfer"
+font_size_px = 26
+
+[[decks]]
+id = "it_phrases"
+display_name = "Italian: Phrases"
+spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
+worksheet_name = "Phrases"
 font_size_px = 26
 
 [[decks]]
