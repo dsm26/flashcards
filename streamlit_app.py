@@ -66,7 +66,7 @@ st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
 st.sidebar.caption(f"Total entries loaded: {len(df)} rows")
 
 # ==============================================================================
-# 4. NAVIGATION ENGINE (HISTORY STACK MIGRATION)
+# 4. NAVIGATION ENGINE
 # ==============================================================================
 if "current_deck_id" not in st.session_state or st.session_state.current_deck_id != deck_config["id"]:
     st.session_state.current_deck_id = deck_config["id"]
@@ -74,9 +74,6 @@ if "current_deck_id" not in st.session_state or st.session_state.current_deck_id
     st.session_state.history_pointer = 0       
     st.session_state.flipped = False
     st.session_state.completed_sequential = False
-
-order_mode = st.radio("Card Ordering Strategy", ["Sequential Track", "Randomized Shuffle"], horizontal=True)
-display_mode = st.toggle("Display Language 1 First", value=True)
 
 total_rows = len(df)
 current_pointer = st.session_state.history_pointer
@@ -92,12 +89,12 @@ if current_row_idx >= total_rows:
     st.session_state.history_pointer = 0
     current_row_idx = 0
 
-def run_next_step():
+def run_next_step(is_randomized):
     st.session_state.flipped = False
     if st.session_state.history_pointer < len(st.session_state.history_stack) - 1:
         st.session_state.history_pointer += 1
     else:
-        if order_mode == "Sequential Track":
+        if not is_randomized:
             next_row = current_row_idx + 1
             if next_row >= total_rows:
                 st.session_state.completed_sequential = True
@@ -122,10 +119,9 @@ def reset_deck_session():
     st.session_state.completed_sequential = False
 
 # ==============================================================================
-# 5. NATIVE DISPLAY RENDERING (NO EXTRA CSS BLOCKS)
+# 5. STREAMLINED UI RENDERING
 # ==============================================================================
-st.write("---")
-st.markdown(f"**Card Session Tracker:** Card #{current_pointer + 1} viewed | Row {current_row_idx + 1} of {total_rows}")
+display_mode = st.toggle("Display Language 1 First", value=True)
 
 if st.session_state.completed_sequential:
     st.warning("🎉 **End of Deck Reached!** You have walked sequentially through every single card in this list.")
@@ -139,30 +135,23 @@ else:
     card_lang_1  = active_row.iloc[1]  
     card_lang_2  = active_row.iloc[2]  
     card_comment = active_row.iloc[3] if len(active_row) > 3 else ""
-
-    st.caption(f"📂 Section / Grouping: **{card_chapter}**")
     
     is_front = (display_mode and not st.session_state.flipped) or (not display_mode and st.session_state.flipped)
     display_heading = card_lang_1 if is_front else card_lang_2
-    side_label = "Language 1" if is_front else "Language 2"
 
-    # NATIVE STREAMLIT BORDERED CONTAINER BOX
+    # NATIVE STREAMLIT BORDERED BOX (No pins, labels, or extra headers)
     with st.container(border=True):
-        st.caption(f"📌 {side_label}")
-        
-        # Read the numerical constraint from TOML to toggle structural layout scaling
         try:
             user_font_size = int(deck_config.get("font_size_px", 28))
         except (ValueError, TypeError):
             user_font_size = 28
         
-        # Evaluate layout sizing native properties based on font target limits
         if user_font_size >= 36:
             st.title(f"{display_heading}")
         else:
             st.subheader(f"{display_heading}")
 
-    # Display optional footnotes safely using native info widget
+    # Display optional footnotes safely
     if st.session_state.flipped and pd.notna(card_comment) and str(card_comment).strip() != "":
         st.info(f"💡 **Note:** {card_comment}")
 
@@ -170,9 +159,15 @@ else:
         st.session_state.flipped = not st.session_state.flipped
         st.rerun()
 
+    # Consolidated Ordering Checkbox (Placed immediately beneath the flip control)
+    random_mode = st.checkbox("Randomized Shuffle", value=False)
+
     # Navigation interface mapping grid
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
     with nav_col2:
-        st.button("Next ➡️", use_container_width=True, on_click=run_next_step)
+        st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
+
+    # Streamlined metadata string positioned at the absolute bottom
+    st.markdown(f"<p style='text-align: center; color: gray; font-size: 0.85em; margin-top: 15px;'>Card {current_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}</p>", unsafe_allowed_html=True)
