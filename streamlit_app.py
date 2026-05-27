@@ -9,6 +9,25 @@ import streamlit.components.v1 as components
 # Force layout optimization for mobile viewports
 st.set_page_config(page_title="Language Flashcards", page_icon="🎴", layout="centered")
 
+# Global style override to prevent Streamlit columns from stacking vertically on mobile phones
+st.markdown(
+    """
+    <style>
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        width: 100% !important;
+    }
+    [data-testid="stHorizontalBlock"] > div {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+    </style>
+    """,
+    unsafe_allowed_html=True
+)
+
 # ==============================================================================
 # 1. READ CONFIGURATION FILE (FROM GITHUB)
 # ==============================================================================
@@ -116,13 +135,12 @@ def reset_deck_session():
     st.session_state.completed_sequential = False
 
 # ==============================================================================
-# 5. FIXED-HEIGHT DISPLAY RENDERING (CROSS-PLATFORM SAFE)
+# 5. STREAMLINED UI DISPLAY (MOBILE OPTIMIZED)
 # ==============================================================================
-# Extract exact language names dynamically from your Google Sheet column headers
+# Pull explicit column names directly from your Google Sheet headers
 lang_1_header = str(df.columns[1]).strip()
 lang_2_header = str(df.columns[2]).strip()
 
-# Dynamic selectbox replacing the old toggle switch
 selected_first_lang = st.selectbox(
     "Show First:", 
     options=[lang_1_header, lang_2_header],
@@ -138,7 +156,7 @@ if st.session_state.completed_sequential:
 else:
     active_row = df.iloc[current_row_idx]
     
-    # Core variables mapping safely with defensive casting against numerical types
+    # Safe text conversions to protect against unexpected number or null cell types
     card_chapter = str(active_row.iloc[0]) if pd.notna(active_row.iloc[0]) else "General"
     card_lang_1  = str(active_row.iloc[1]) if pd.notna(active_row.iloc[1]) else ""
     card_lang_2  = str(active_row.iloc[2]) if pd.notna(active_row.iloc[2]) else ""
@@ -150,15 +168,15 @@ else:
     # 5th Column check: Comments/Footnotes (Index 4, Column E)
     card_comment = str(active_row.iloc[4]).strip() if (len(active_row) > 4 and pd.notna(active_row.iloc[4])) else ""
     
-    # Evaluate phonetics configuration availability across the sheet dynamically
+    # Check if the phonetics column contains actual data anywhere across the dataset
     show_phonetics_option = False
     if has_phonetics_col:
         has_real_data = df.iloc[:, 3].dropna().astype(str).str.strip().str.len().gt(0).any()
         if has_real_data:
             show_phonetics_option = True
 
-    # Compact configuration control flags grouped into a single layout row
-    col_ans, col_rand, col_phon = st.columns([1.2, 0.9, 0.9])
+    # High-density checkbox settings bar forced to stay on one row
+    col_ans, col_rand, col_phon = st.columns([1.1, 0.9, 1.0])
     with col_ans:
         reveal_answer = st.checkbox("Show Answer", value=False)
     with col_rand:
@@ -167,25 +185,23 @@ else:
         if show_phonetics_option:
             st.checkbox("Phonetics", key="toggle_phonetics")
 
-    # Determine layout text hierarchy based on dropdown selection
+    # Map text hierarchy positions based on dropdown choice
     top_display_text = card_lang_1 if display_mode else card_lang_2
     bottom_display_text = card_lang_2 if display_mode else card_lang_1
 
-    # Resolve specific layout font dimension limits
     try:
         font_size = int(deck_config.get("font_size_px", 28))
     except (ValueError, TypeError):
         font_size = 28
 
-    # Build internal card sub-components based on user interface preferences
     answer_html = f"<div style='color: #FF4B4B; font-size: 22px; margin-top: 10px; font-weight: 500;'>{bottom_display_text}</div>" if reveal_answer else ""
     phonetics_html = f"<div style='color: #888888; font-size: 15px; margin-top: 12px;'>🗣️ {card_phonetics}</div>" if (show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics) else ""
 
-    # Self-contained layout document with hardcoded light/dark native browser adjustments
+    # Fixed-height canvas frame document utilizing native device color schemes
     card_content_html = f"""
     <style>
         .card-canvas {{
-            background-color: #1E1E1E; /* Default Dark Mode Background */
+            background-color: #1E1E1E; /* Core Dark Theme */
             border: 2px solid #36393F;
             border-radius: 12px;
             padding: 15px;
@@ -205,10 +221,9 @@ else:
             color: #FFFFFF; 
             line-height: 1.2;
         }}
-        /* Native iOS theme hook overrides when device is flipped to Light Mode */
         @media (prefers-color-scheme: light) {{
             .card-canvas {{
-                background-color: #F0F2F6; 
+                background-color: #F0F2F6; /* Core Light Theme */
                 border-color: #E0E2E6;
             }}
             .main-text {{
@@ -223,10 +238,9 @@ else:
         {phonetics_html}
     </div>
     """
-    # Render frozen canvas shell inside an independent sandbox frame
     components.html(card_content_html, height=146)
 
-    # 🔊 FIXED AUDIO ENGINE: Always targets card_lang_1 (Foreign Word)
+    # 🔊 FIXED AUDIO PLAYER: Always reads card_lang_1 (Foreign String)
     lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
     safe_speech_text = card_lang_1.replace("'", "\\'")
     
@@ -248,16 +262,15 @@ else:
     """
     components.html(tts_html, height=44)
 
-    # Display optional footnotes safely beneath audio engine when card is revealed
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
-    # Clean navigation buttons controls grid
+    # Solid non-wrapping structural buttons row
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
     with nav_col2:
         st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
-    # Native, centered text tracker at the absolute bottom
+    # Native, centered bottom index string tracker
     st.caption(f"Card {current_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}")
