@@ -11,7 +11,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Language Flashcards", page_icon="🎴", layout="centered")
 
 # ==============================================================================
-# INDESTRUCTIBLE MOBILE GRID & TARGETED INLINE SELECTBOX OVERRIDE
+# INDESTRUCTIBLE MOBILE GRID & TARGETED SIDEBAR KEYBOARD BLOCKERS
 # ==============================================================================
 st.markdown(
     """
@@ -57,9 +57,20 @@ st.markdown(
         width: auto !important;
     }
 
-    /* MOBILE SELECTBOX OPTIMIZATION: Disable typing input to block the iOS keyboard */
+    /* HARDCORE MOBILE KEYBOARD BLOCKER: 
+       Intercepts and completely masks the inner input fields in the sidebar 
+       so iOS treats the selectboxes as plain click elements without focus fields. */
+    div[data-testid="stSidebar"] div[data-testid="stSelectbox"] input,
+    div[data-testid="stSidebar"] .stSelectbox input,
     div[data-testid="stSidebar"] div[role="combobox"] input {
         pointer-events: none !important;
+        user-select: none !important;
+        inputmode: none !important;
+    }
+    
+    /* Ensure the container block remains entirely clickable for scrolling selection lists */
+    div[data-testid="stSidebar"] div[data-baseweb="select"] {
+        cursor: pointer !important;
     }
     </style>
     """,
@@ -142,38 +153,33 @@ else:
 total_rows = len(df)
 
 # ==============================================================================
-# 4. NAVIGATION ENGINE & FIXED JUMP-TO LOGIC
+# 4. NAVIGATION ENGINE & SIDEBAR WIDGET 2: JUMP TO
 # ==============================================================================
 session_key_deck = f"deck_{deck_config['id']}"
 session_key_chap = f"chap_{selected_chapter}"
 current_track_id = session_key_deck + "_" + session_key_chap
 
-# Track if the state container needs an absolute refresh
 if "current_deck_track" not in st.session_state or st.session_state.current_deck_track != current_track_id:
     st.session_state.current_deck_track = current_track_id
     st.session_state.history_stack = [0]       
     st.session_state.history_pointer = 0       
     st.session_state.completed_sequential = False
-    st.session_state.last_jump_value = None
 
 current_pointer = st.session_state.history_pointer
 current_card_index = st.session_state.history_stack[current_pointer] if current_pointer < len(st.session_state.history_stack) else 0
 
-# Generate clean jump parameters
 jump_options = []
 jump_indices = []
 if total_rows > 0:
     jump_indices = list(range(0, total_rows, 20))
     jump_options = [f"Card {i + 1}" for i in jump_indices]
 
-# Determine which option in the dropdown list to focus visually
 closest_jump_idx = 0
 if jump_indices:
     lower_bound_matches = [i for i in jump_indices if i <= current_card_index]
     if lower_bound_matches:
         closest_jump_idx = jump_indices.index(max(lower_bound_matches))
 
-# Use an explicit callback function to catch users changing the selection
 def handle_jump_selection():
     target_label = st.session_state.sidebar_jump_widget
     if target_label in jump_options:
@@ -194,7 +200,6 @@ st.sidebar.markdown("---")
 st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
 st.sidebar.caption(f"Loaded {len(df_raw)} total entries from sheet.")
 
-# Recalculate working position post-jump resolution updates
 current_row_idx = st.session_state.history_stack[st.session_state.history_pointer] if st.session_state.history_pointer < len(st.session_state.history_stack) else 0
 
 def run_next_step(is_randomized):
