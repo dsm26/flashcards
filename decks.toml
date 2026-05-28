@@ -17,3 +17,10 @@ spreadsheet_id = "104ptZ30KpS9hP4JOuFl5wf2z5leN7DickYvzwno0GMs"
 worksheet_name = "Vocab"
 font_size_px = 42 # Large font configuration for mobile readability
 
+[[decks]]
+id = "zh_hsk2"
+display_name = "Chinese: Old Vocab"
+spreadsheet_id = "104ptZ30KpS9hP4JOuFl5wf2z5leN7DickYvzwno0GMs"
+worksheet_name = "Old Vocab"
+font_size_px = 42 # Large font configuration for mobile readability
+
