@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Language Flashcards", page_icon="🎴", layout="centered")
 
 # ==============================================================================
-# INDESTRUCTIBLE MOBILE GRID & INLINE SELECTBOX OVERRIDE
+# INDESTRUCTIBLE MOBILE GRID & TARGETED INLINE SELECTBOX OVERRIDE
 # ==============================================================================
 st.markdown(
     """
@@ -34,8 +34,8 @@ st.markdown(
         width: 100% !important;
     }
 
-    /* Force the 'Show First' Selectbox label and dropdown onto the same line */
-    div[data-testid="stSelectbox"] {
+    /* Target ONLY the main body selectbox (excludes stSidebar entirely) */
+    div[data-testid="stMainBlockContainer"] div[data-testid="stSelectbox"] {
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
@@ -43,15 +43,15 @@ st.markdown(
         width: 100% !important;
     }
 
-    /* Prevent the label from wrapping or breaking text alignments */
-    div[data-testid="stSelectbox"] label {
+    /* Prevent the main body label from wrapping or breaking text alignments */
+    div[data-testid="stMainBlockContainer"] div[data-testid="stSelectbox"] label {
         margin-bottom: 0 !important;
         white-space: nowrap !important;
         min-width: fit-content !important;
     }
 
     /* Ensure the structural inner select wrapper takes up the remaining row space */
-    div[data-testid="stSelectbox"] > div:nth-child(2) {
+    div[data-testid="stMainBlockContainer"] div[data-testid="stSelectbox"] > div:nth-child(2) {
         flex-grow: 1 !important;
         width: auto !important;
     }
