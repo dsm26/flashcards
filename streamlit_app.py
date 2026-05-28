@@ -199,13 +199,37 @@ else:
     top_display_text = card_lang_1 if display_mode else card_lang_2
     bottom_display_text = card_lang_2 if display_mode else card_lang_1
 
-    try:
-        font_size = int(deck_config.get("font_size_px", 28))
-    except (ValueError, TypeError):
-        font_size = 28
+    # Isolate whether this deck uses Chinese characters
+    is_chinese_deck = "zh" in str(deck_config["id"]).lower()
 
+    # Determine dynamic text scaling and weights to prevent clipping layout issues
+    if display_mode:
+        # Case 1: Foreign Language is at the top
+        if is_chinese_deck:
+            top_font_size = int(deck_config.get("font_size_px", 34)) # Keep Hanzi large
+            top_weight = "normal"
+        else:
+            top_font_size = 24 # Standardize European scripts to fit screen elegantly
+            top_weight = "normal"
+    else:
+        # Case 2: Native translation (English) is at the top
+        top_font_size = 22 # Keeps English compact and drops the heavy weight
+        top_weight = "normal"
+
+    # ==============================================================================
+    # ASYMMETRICAL PHONETICS LOGIC MATRIX IMPLEMENTATION
+    # ==============================================================================
+    phonetics_visible = False
+    if show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics:
+        if display_mode:
+            phonetics_visible = True
+        else:
+            if reveal_answer:
+                phonetics_visible = True
+
+    # Match pronunciation guide font size directly to the target English layout specification (22px)
     answer_html = f"<div style='color: #FF4B4B; font-size: 22px; margin-top: 10px; font-weight: 500;'>{bottom_display_text}</div>" if reveal_answer else ""
-    phonetics_html = f"<div style='color: #888888; font-size: 15px; margin-top: 12px;'>🗣️ {card_phonetics}</div>" if (show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics) else ""
+    phonetics_html = f"<div style='color: #888888; font-size: 22px; margin-top: 10px; font-weight: normal;'>🗣️ {card_phonetics}</div>" if phonetics_visible else ""
 
     # Fixed-height canvas frame document utilizing native device color schemes
     card_content_html = f"""
@@ -226,8 +250,8 @@ else:
             box-sizing: border-box;
         }}
         .main-text {{
-            font-size: {font_size}px; 
-            font-weight: bold; 
+            font-size: {top_font_size}px; 
+            font-weight: {top_weight}; 
             color: #FFFFFF; 
             line-height: 1.2;
         }}
