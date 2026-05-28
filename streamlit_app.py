@@ -57,20 +57,11 @@ st.markdown(
         width: auto !important;
     }
 
-    /* HARDCORE MOBILE KEYBOARD BLOCKER: 
-       Intercepts and completely masks the inner input fields in the sidebar 
-       so iOS treats the selectboxes as plain click elements without focus fields. */
-    div[data-testid="stSidebar"] div[data-testid="stSelectbox"] input,
-    div[data-testid="stSidebar"] .stSelectbox input,
-    div[data-testid="stSidebar"] div[role="combobox"] input {
+    /* BULLETPROOF MOBILE KEYBOARD DISABLEMENT */
+    div[data-testid="stSidebar"] div[role="combobox"] input,
+    div[data-testid="stSidebar"] input[role="combobox"] {
         pointer-events: none !important;
-        user-select: none !important;
         inputmode: none !important;
-    }
-    
-    /* Ensure the container block remains entirely clickable for scrolling selection lists */
-    div[data-testid="stSidebar"] div[data-baseweb="select"] {
-        cursor: pointer !important;
     }
     </style>
     """,
@@ -153,79 +144,69 @@ else:
 total_rows = len(df)
 
 # ==============================================================================
-# 4. NAVIGATION ENGINE & SIDEBAR WIDGET 2: JUMP TO
+# 4. FIXED CORE NAVIGATION ENGINE & SLIDER JUMP INTELLIGENCE
 # ==============================================================================
 session_key_deck = f"deck_{deck_config['id']}"
 session_key_chap = f"chap_{selected_chapter}"
 current_track_id = session_key_deck + "_" + session_key_chap
 
+# Track if user swapped active list configurations entirely
 if "current_deck_track" not in st.session_state or st.session_state.current_deck_track != current_track_id:
     st.session_state.current_deck_track = current_track_id
-    st.session_state.history_stack = [0]       
-    st.session_state.history_pointer = 0       
+    st.session_state.current_index_pointer = 0
     st.session_state.completed_sequential = False
 
-current_pointer = st.session_state.history_pointer
-current_card_index = st.session_state.history_stack[current_pointer] if current_pointer < len(st.session_state.history_stack) else 0
+# Fallback boundary check
+if st.session_state.current_index_pointer >= total_rows and total_rows > 0:
+    st.session_state.current_index_pointer = 0
 
-jump_options = []
-jump_indices = []
-if total_rows > 0:
-    jump_indices = list(range(0, total_rows, 20))
-    jump_options = [f"Card {i + 1}" for i in jump_indices]
+# Generate discrete step points (0, 20, 40...)
+jump_indices = list(range(0, total_rows, 20)) if total_rows > 0 else [0]
 
-closest_jump_idx = 0
-if jump_indices:
-    lower_bound_matches = [i for i in jump_indices if i <= current_card_index]
-    if lower_bound_matches:
-        closest_jump_idx = jump_indices.index(max(lower_bound_matches))
+# Determine the closest matching step lower boundary
+current_idx = st.session_state.current_index_pointer
+closest_base = max([i for i in jump_indices if i <= current_idx]) if jump_indices else 0
 
-def handle_jump_selection():
-    target_label = st.session_state.sidebar_jump_widget
-    if target_label in jump_options:
-        target_idx = jump_indices[jump_options.index(target_label)]
-        st.session_state.history_stack = [target_idx]
-        st.session_state.history_pointer = 0
-        st.session_state.completed_sequential = False
+def on_slider_move():
+    # Force updating target frame base accurately
+    st.session_state.current_index_pointer = st.session_state.jump_slider_widget
+    st.session_state.completed_sequential = False
 
-selected_jump_label = st.sidebar.selectbox(
-    "Jump to:", 
-    options=jump_options, 
-    index=min(closest_jump_idx, len(jump_options)-1) if jump_options else 0,
-    key="sidebar_jump_widget",
-    on_change=handle_jump_selection
+# Render the layout using an intuitive slider component: No input box = No keyboard!
+st.sidebar.select_slider(
+    "Jump to section:",
+    options=jump_indices,
+    value=closest_base,
+    format_func=lambda x: f"Card {x + 1}",
+    key="jump_slider_widget",
+    on_change=on_slider_move,
+    disabled=(total_rows == 0)
 )
 
 st.sidebar.markdown("---")
 st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
 st.sidebar.caption(f"Loaded {len(df_raw)} total entries from sheet.")
 
-current_row_idx = st.session_state.history_stack[st.session_state.history_pointer] if st.session_state.history_pointer < len(st.session_state.history_stack) else 0
+# Safe index assignment
+current_row_idx = st.session_state.current_index_pointer
 
 def run_next_step(is_randomized):
-    if st.session_state.history_pointer < len(st.session_state.history_stack) - 1:
-        st.session_state.history_pointer += 1
-    else:
-        if not is_randomized:
-            next_row = current_row_idx + 1
-            if next_row >= total_rows:
-                st.session_state.completed_sequential = True
-            else:
-                st.session_state.history_stack.append(next_row)
-                st.session_state.history_pointer += 1
+    if not is_randomized:
+        next_row = st.session_state.current_index_pointer + 1
+        if next_row >= total_rows:
+            st.session_state.completed_sequential = True
         else:
-            next_row = random.randint(0, total_rows - 1)
-            st.session_state.history_stack.append(next_row)
-            st.session_state.history_pointer += 1
+            st.session_state.current_index_pointer = next_row
+    else:
+        st.session_state.current_index_pointer = random.randint(0, total_rows - 1)
 
 def run_prev_step():
-    if st.session_state.history_pointer > 0:
-        st.session_state.history_pointer -= 1
+    if st.session_state.current_index_pointer > 0:
+        st.session_state.current_index_pointer -= 1
         st.session_state.completed_sequential = False
 
 def reset_deck_session():
-    st.session_state.history_stack = [0]
-    st.session_state.history_pointer = 0
+    st.session_state.current_index_pointer = 0
     st.session_state.completed_sequential = False
 
 # ==============================================================================
@@ -380,13 +361,14 @@ else:
 
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
-        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(st.session_state.history_pointer == 0))
+        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(st.session_state.current_index_pointer == 0))
     with nav_col2:
         st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
+    # Metric text rendering frame
     if selected_chapter == "All Chapters":
-        footer_string = f"Card {st.session_state.history_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}"
+        footer_string = f"Card {st.session_state.current_index_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}"
     else:
-        footer_string = f"Card {st.session_state.history_pointer + 1} of {total_rows} in {selected_chapter} &nbsp;|&nbsp; Total Deck: {len(df_raw)}"
+        footer_string = f"Card {st.session_state.current_index_pointer + 1} of {total_rows} in {selected_chapter} &nbsp;|&nbsp; Total Deck: {len(df_raw)}"
         
     st.caption(f"<div style='text-align: center;'>{footer_string}</div>", unsafe_allow_html=True)
