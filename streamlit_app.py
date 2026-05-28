@@ -56,6 +56,11 @@ st.markdown(
         flex-grow: 1 !important;
         width: auto !important;
     }
+
+    /* MOBILE SELECTBOX OPTIMIZATION: Disable typing input to block the iOS keyboard */
+    div[data-testid="stSidebar"] div[role="combobox"] input {
+        pointer-events: none !important;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -123,16 +128,12 @@ def flexible_sort_key(text):
     """Breaks text into chunks of strings and numbers for natural sorting."""
     return [int(chunk) if chunk.isdigit() else chunk.lower() for chunk in re.split(r'(\d+)', str(text))]
 
-# Extract unique chapters from column 0, stripping whitespace and removing nulls
 raw_chapters = df_raw.iloc[:, 0].dropna().astype(str).str.strip().unique()
-
-# Apply the flexible sorting key
 sorted_chapters = sorted(list(raw_chapters), key=flexible_sort_key)
 chapter_options = ["All Chapters"] + sorted_chapters
 
 selected_chapter = st.sidebar.selectbox("Filter by Chapter", options=chapter_options)
 
-# Apply filtration step down to active dataset working framework
 if selected_chapter == "All Chapters":
     df = df_raw.copy()
 else:
@@ -141,52 +142,59 @@ else:
 total_rows = len(df)
 
 # ==============================================================================
-# 4. NAVIGATION ENGINE & SIDEBAR WIDGET 2: JUMP TO
+# 4. NAVIGATION ENGINE & FIXED JUMP-TO LOGIC
 # ==============================================================================
 session_key_deck = f"deck_{deck_config['id']}"
 session_key_chap = f"chap_{selected_chapter}"
+current_track_id = session_key_deck + "_" + session_key_chap
 
-if "current_deck_track" not in st.session_state or st.session_state.current_deck_track != (session_key_deck + "_" + session_key_chap):
-    st.session_state.current_deck_track = session_key_deck + "_" + session_key_chap
+# Track if the state container needs an absolute refresh
+if "current_deck_track" not in st.session_state or st.session_state.current_deck_track != current_track_id:
+    st.session_state.current_deck_track = current_track_id
     st.session_state.history_stack = [0]       
     st.session_state.history_pointer = 0       
     st.session_state.completed_sequential = False
+    st.session_state.last_jump_value = None
 
 current_pointer = st.session_state.history_pointer
+current_card_index = st.session_state.history_stack[current_pointer] if current_pointer < len(st.session_state.history_stack) else 0
 
+# Generate clean jump parameters
 jump_options = []
+jump_indices = []
 if total_rows > 0:
     jump_indices = list(range(0, total_rows, 20))
     jump_options = [f"Card {i + 1}" for i in jump_indices]
 
-current_card_index = st.session_state.history_stack[current_pointer] if current_pointer < len(st.session_state.history_stack) else 0
+# Determine which option in the dropdown list to focus visually
 closest_jump_idx = 0
-if current_card_index in jump_indices:
-    closest_jump_idx = jump_indices.index(current_card_index)
-else:
+if jump_indices:
     lower_bound_matches = [i for i in jump_indices if i <= current_card_index]
     if lower_bound_matches:
         closest_jump_idx = jump_indices.index(max(lower_bound_matches))
 
+# Use an explicit callback function to catch users changing the selection
+def handle_jump_selection():
+    target_label = st.session_state.sidebar_jump_widget
+    if target_label in jump_options:
+        target_idx = jump_indices[jump_options.index(target_label)]
+        st.session_state.history_stack = [target_idx]
+        st.session_state.history_pointer = 0
+        st.session_state.completed_sequential = False
+
 selected_jump_label = st.sidebar.selectbox(
     "Jump to:", 
     options=jump_options, 
-    index=min(closest_jump_idx, len(jump_options)-1) if jump_options else 0
+    index=min(closest_jump_idx, len(jump_options)-1) if jump_options else 0,
+    key="sidebar_jump_widget",
+    on_change=handle_jump_selection
 )
-
-if jump_options:
-    chosen_jump_target_index = jump_indices[jump_options.index(selected_jump_label)]
-    if current_card_index != chosen_jump_target_index:
-        st.session_state.history_stack = [chosen_jump_target_index]
-        st.session_state.history_pointer = 0
-        st.session_state.completed_sequential = False
-        st.slots = {} 
-        st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
 st.sidebar.caption(f"Loaded {len(df_raw)} total entries from sheet.")
 
+# Recalculate working position post-jump resolution updates
 current_row_idx = st.session_state.history_stack[st.session_state.history_pointer] if st.session_state.history_pointer < len(st.session_state.history_stack) else 0
 
 def run_next_step(is_randomized):
@@ -367,11 +375,10 @@ else:
 
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
-        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
+        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(st.session_state.history_pointer == 0))
     with nav_col2:
         st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
-    # CLEANED HIGHDENSITY METRIC FOOTER
     if selected_chapter == "All Chapters":
         footer_string = f"Card {st.session_state.history_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}"
     else:
