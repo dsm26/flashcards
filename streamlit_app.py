@@ -185,15 +185,18 @@ else:
         if has_real_data:
             show_phonetics_option = True
 
-    # High-density checkbox settings bar (Forced side-by-side by CSS block)
-    col_ans, col_rand, col_phon = st.columns(3)
+    # REORDERED High-density checkbox settings bar: [Answer] [Phonetics] [Random]
+    col_ans, col_phon, col_rand = st.columns(3)
     with col_ans:
         reveal_answer = st.checkbox("Show Answer", value=False)
-    with col_rand:
-        random_mode = st.checkbox("Random", value=False)
     with col_phon:
         if show_phonetics_option:
             st.checkbox("Phonetics", key="toggle_phonetics")
+        else:
+            # Render empty space placeholder to preserve grid mapping structure on devices
+            st.write("")
+    with col_rand:
+        random_mode = st.checkbox("Random", value=False)
 
     # Determine deck type
     is_chinese_deck = "zh" in str(deck_config["id"]).lower()
@@ -211,16 +214,14 @@ else:
         bottom_display_text = card_lang_2
         
         top_font_size = user_foreign_size if is_chinese_deck else 24
-        bottom_font_size = 22 # Answer text size for native English
-        bottom_color = "#FF4B4B"
+        bottom_font_size = 22 
     else:
         # Native (Lang 2) is at the top, Foreign (Lang 1) is at the bottom
         top_display_text = card_lang_2
         bottom_display_text = card_lang_1
         
-        top_font_size = 22 # Keep English prompt compact and clean
-        bottom_font_size = user_foreign_size if is_chinese_deck else 24 # Lock Chinese to large font as answer
-        bottom_color = "#FF4B4B" if not is_chinese_deck else "#4CD964" # Distinct bright green for foreign answers if preferred, or keep red
+        top_font_size = 22 
+        bottom_font_size = user_foreign_size if is_chinese_deck else 24 
 
     # ==============================================================================
     # ASYMMETRICAL PHONETICS LOGIC MATRIX IMPLEMENTATION
