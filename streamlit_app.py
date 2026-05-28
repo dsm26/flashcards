@@ -185,7 +185,7 @@ else:
         if has_real_data:
             show_phonetics_option = True
 
-    # REORDERED High-density checkbox settings bar: [Answer] [Phonetics] [Random]
+    # High-density checkbox settings bar: [Answer] [Phonetics] [Random]
     col_ans, col_phon, col_rand = st.columns(3)
     with col_ans:
         reveal_answer = st.checkbox("Show Answer", value=False)
@@ -193,7 +193,6 @@ else:
         if show_phonetics_option:
             st.checkbox("Phonetics", key="toggle_phonetics")
         else:
-            # Render empty space placeholder to preserve grid mapping structure on devices
             st.write("")
     with col_rand:
         random_mode = st.checkbox("Random", value=False)
@@ -209,14 +208,12 @@ else:
 
     # Assign text values and fonts dynamically based on selection orientation
     if display_mode:
-        # Foreign (Lang 1) is at the top, Native (Lang 2) is at the bottom
         top_display_text = card_lang_1
         bottom_display_text = card_lang_2
         
         top_font_size = user_foreign_size if is_chinese_deck else 24
         bottom_font_size = 22 
     else:
-        # Native (Lang 2) is at the top, Foreign (Lang 1) is at the bottom
         top_display_text = card_lang_2
         bottom_display_text = card_lang_1
         
@@ -238,7 +235,7 @@ else:
     answer_html = f"<div style='color: #FF4B4B; font-size: {bottom_font_size}px; margin-top: 10px; font-weight: normal;'>{bottom_display_text}</div>" if reveal_answer else ""
     phonetics_html = f"<div style='color: #888888; font-size: 22px; margin-top: 10px; font-weight: normal;'>🗣️ {card_phonetics}</div>" if phonetics_visible else ""
 
-    # Fixed-height canvas frame document utilizing native device color schemes
+    # EXPANDED CANVAS BOUNDARIES: Height bumped to 180px to safely contain long scripts
     card_content_html = f"""
     <style>
         .card-canvas {{
@@ -247,7 +244,7 @@ else:
             border-radius: 12px;
             padding: 15px;
             text-align: center;
-            height: 140px;
+            height: 180px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -255,7 +252,19 @@ else:
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             overflow-y: auto;
             box-sizing: border-box;
+            
+            /* Hide default visual scrollbars across standard engines */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none;  /* Internet Explorer 10+ */
         }}
+        
+        /* Mask Chrome, Safari, and Edge scrollbar tracks completely */
+        .card-canvas::-webkit-scrollbar {{
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }}
+        
         .main-text {{
             font-size: {top_font_size}px; 
             font-weight: normal; 
@@ -279,7 +288,8 @@ else:
         {phonetics_html}
     </div>
     """
-    components.html(card_content_html, height=146)
+    # Matched iframe window scale tracking variable to 186px
+    components.html(card_content_html, height=186)
 
     # 🔊 FIXED AUDIO PLAYER: Always reads card_lang_1 (Foreign String)
     lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
