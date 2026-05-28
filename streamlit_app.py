@@ -99,7 +99,7 @@ deck_map = {deck["display_name"]: deck for deck in config_data["decks"]}
 selected_deck_name = st.sidebar.selectbox("Choose Vocab List", options=list(deck_map.keys()))
 deck_config = deck_map[selected_deck_name]
 
-if st.sidebar.button("🔄 Reload GoogleSheet"):
+if st.sidebar.button("Reload GoogleSheet"):
     st.cache_data.clear()
     st.rerun()
 
@@ -157,11 +157,15 @@ if "current_index_pointer" not in st.session_state:
 if "completed_sequential" not in st.session_state:
     st.session_state.completed_sequential = False
 
+if "shuffled_order" not in st.session_state:
+    st.session_state.shuffled_order = []
+
 # Track if user swapped active list configurations or chapters entirely
 if "current_deck_track" not in st.session_state or st.session_state.current_deck_track != current_track_id:
     st.session_state.current_deck_track = current_track_id
     st.session_state.current_index_pointer = 0
     st.session_state.completed_sequential = False
+    st.session_state.shuffled_order = []
 
 # Boundary check safety verification execution step
 if st.session_state.current_index_pointer >= total_rows and total_rows > 0:
@@ -194,9 +198,7 @@ st.sidebar.markdown("---")
 st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
 st.sidebar.caption(f"Loaded {len(df_raw)} total entries from sheet.")
 
-# Safe execution tracking variable mapping pointer assignments
-current_row_idx = st.session_state.current_index_pointer
-
+# Navigation Step Handlers
 def run_next_step(is_randomized):
     if not is_randomized:
         next_row = st.session_state.current_index_pointer + 1
@@ -205,16 +207,42 @@ def run_next_step(is_randomized):
         else:
             st.session_state.current_index_pointer = next_row
     else:
-        st.session_state.current_index_pointer = random.randint(0, total_rows - 1)
+        # If random mode is on, advance via our persistent shuffled index queue
+        if not st.session_state.shuffled_order or len(st.session_state.shuffled_order) != total_rows:
+            st.session_state.shuffled_order = list(range(total_rows))
+            random.shuffle(st.session_state.shuffled_order)
+            
+        try:
+            # Find where we are in the randomized list, then move to the next position
+            current_shuff_pos = st.session_state.shuffled_order.index(st.session_state.current_index_pointer)
+            next_shuff_pos = current_shuff_pos + 1
+            if next_shuff_pos >= total_rows:
+                st.session_state.completed_sequential = True
+            else:
+                st.session_state.current_index_pointer = st.session_state.shuffled_order[next_shuff_pos]
+        except ValueError:
+            st.session_state.current_index_pointer = random.choice(st.session_state.shuffled_order)
 
-def run_prev_step():
-    if st.session_state.current_index_pointer > 0:
-        st.session_state.current_index_pointer -= 1
-        st.session_state.completed_sequential = False
+def run_prev_step(is_randomized):
+    if not is_randomized:
+        if st.session_state.current_index_pointer > 0:
+            st.session_state.current_index_pointer -= 1
+            st.session_state.completed_sequential = False
+    else:
+        # Move back one step using the exact same random sequence
+        if st.session_state.shuffled_order:
+            try:
+                current_shuff_pos = st.session_state.shuffled_order.index(st.session_state.current_index_pointer)
+                if current_shuff_pos > 0:
+                    st.session_state.current_index_pointer = st.session_state.shuffled_order[current_shuff_pos - 1]
+                    st.session_state.completed_sequential = False
+            except ValueError:
+                pass
 
 def reset_deck_session():
     st.session_state.current_index_pointer = 0
     st.session_state.completed_sequential = False
+    st.session_state.shuffled_order = []
 
 # ==============================================================================
 # 5. STREAMLINED UI DISPLAY (MOBILE OPTIMIZED)
@@ -232,11 +260,13 @@ display_mode = (selected_first_lang == lang_1_header)
 if total_rows == 0:
     st.warning("⚠️ No vocabulary items found matching your current search parameters or chapter selection criteria.")
 elif st.session_state.completed_sequential:
-    st.warning("🎉 **End of Deck Reached!** You have walked sequentially through every single card in this filtered view.")
+    st.warning("🎉 **End of Deck Reached!** You have walked through every card in this filtered view.")
     if st.button("🔄 Start This Filtered Deck Over", use_container_width=True):
         reset_deck_session()
         st.rerun()
 else:
+    # Safely align selected track layout targets
+    current_row_idx = st.session_state.current_index_pointer
     active_row = df.iloc[current_row_idx]
     
     card_chapter = str(active_row.iloc[0]) if pd.notna(active_row.iloc[0]) else "General"
@@ -263,6 +293,9 @@ else:
             st.write("")
     with col_rand:
         random_mode = st.checkbox("Random", value=False)
+        # Clear specific shuffled tracking lists if random gets untoggled
+        if not random_mode and st.session_state.shuffled_order:
+            st.session_state.shuffled_order = []
 
     is_chinese_deck = "zh" in str(deck_config["id"]).lower()
 
@@ -366,9 +399,19 @@ else:
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
+    # Render navigational controls using the updated look-back routing arguments
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
-        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(st.session_state.current_index_pointer == 0))
+        is_at_start = False
+        if random_mode and st.session_state.shuffled_order:
+            try:
+                is_at_start = (st.session_state.shuffled_order.index(st.session_state.current_index_pointer) == 0)
+            except ValueError:
+                pass
+        else:
+            is_at_start = (st.session_state.current_index_pointer == 0)
+
+        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, args=(random_mode,), disabled=is_at_start)
     with nav_col2:
         st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
