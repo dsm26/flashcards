@@ -150,13 +150,20 @@ session_key_deck = f"deck_{deck_config['id']}"
 session_key_chap = f"chap_{selected_chapter}"
 current_track_id = session_key_deck + "_" + session_key_chap
 
-# Track if user swapped active list configurations entirely
+# FIRST: Ensure state variables exist to prevent baseline AttributErrors
+if "current_index_pointer" not in st.session_state:
+    st.session_state.current_index_pointer = 0
+
+if "completed_sequential" not in st.session_state:
+    st.session_state.completed_sequential = False
+
+# Track if user swapped active list configurations or chapters entirely
 if "current_deck_track" not in st.session_state or st.session_state.current_deck_track != current_track_id:
     st.session_state.current_deck_track = current_track_id
     st.session_state.current_index_pointer = 0
     st.session_state.completed_sequential = False
 
-# Fallback boundary check
+# Boundary check safety verification execution step
 if st.session_state.current_index_pointer >= total_rows and total_rows > 0:
     st.session_state.current_index_pointer = 0
 
@@ -172,7 +179,7 @@ def on_slider_move():
     st.session_state.current_index_pointer = st.session_state.jump_slider_widget
     st.session_state.completed_sequential = False
 
-# Render the layout using an intuitive slider component: No input box = No keyboard!
+# Render the mobile friendly slider selector
 st.sidebar.select_slider(
     "Jump to section:",
     options=jump_indices,
@@ -187,7 +194,7 @@ st.sidebar.markdown("---")
 st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
 st.sidebar.caption(f"Loaded {len(df_raw)} total entries from sheet.")
 
-# Safe index assignment
+# Safe execution tracking variable mapping pointer assignments
 current_row_idx = st.session_state.current_index_pointer
 
 def run_next_step(is_randomized):
@@ -365,7 +372,6 @@ else:
     with nav_col2:
         st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
-    # Metric text rendering frame
     if selected_chapter == "All Chapters":
         footer_string = f"Card {st.session_state.current_index_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}"
     else:
