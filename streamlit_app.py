@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Language Flashcards", page_icon="🎴", layout="centered")
 
 # ==============================================================================
-# INDESTRUCTIBLE MOBILE GRID OVERRIDE (FORCES ALL COLUMNS SIDE-BY-SIDE ON IPHONES)
+# INDESTRUCTIBLE MOBILE GRID & INLINE SELECTBOX OVERRIDE
 # ==============================================================================
 st.markdown(
     """
@@ -32,6 +32,28 @@ st.markdown(
         flex: 1 1 0% !important;
         min-width: 0 !important;
         width: 100% !important;
+    }
+
+    /* Force the 'Show First' Selectbox label and dropdown onto the same line */
+    div[data-testid="stSelectbox"] {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 15px !important;
+        width: 100% !important;
+    }
+
+    /* Prevent the label from wrapping or breaking text alignments */
+    div[data-testid="stSelectbox"] label {
+        margin-bottom: 0 !important;
+        white-space: nowrap !important;
+        min-width: fit-content !important;
+    }
+
+    /* Ensure the structural inner select wrapper takes up the remaining row space */
+    div[data-testid="stSelectbox"] > div:nth-child(2) {
+        flex-grow: 1 !important;
+        width: auto !important;
     }
     </style>
     """,
@@ -288,7 +310,6 @@ else:
         {phonetics_html}
     </div>
     """
-    # Matched iframe window scale tracking variable to 186px
     components.html(card_content_html, height=186)
 
     # 🔊 FIXED AUDIO PLAYER: Always reads card_lang_1 (Foreign String)
