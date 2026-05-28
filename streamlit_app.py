@@ -96,16 +96,16 @@ if st.sidebar.button("🔄 Force Reload From Google Sheets"):
     st.rerun()
 
 try:
-    df, load_duration = load_vocab_sheet(
+    df_raw, load_duration = load_vocab_sheet(
         deck_config["spreadsheet_id"], 
         deck_config["worksheet_name"]
     )
     
-    if df is None or df.empty:
+    if df_raw is None or df_raw.empty:
         st.error(f"❌ Data Error: The tab '{deck_config['worksheet_name']}' is empty.")
         st.stop()
         
-    if df.shape[1] < 3:
+    if df_raw.shape[1] < 3:
         st.error(f"❌ Spreadsheet Schema Error: Requires at least 3 columns (Chapter, Lang 1, Lang 2).")
         st.stop()
 
@@ -114,31 +114,82 @@ except Exception as e:
     st.stop()
 
 st.sidebar.markdown("---")
-st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
-st.sidebar.caption(f"Total entries loaded: {len(df)} rows")
+
+# ------------------------------------------------------------------------------
+# NEW SIDEBAR WIDGET 1: CHAPTER SELECT
+# ------------------------------------------------------------------------------
+# Extract unique chapters from column 0, stripping whitespace and removing nulls
+raw_chapters = df_raw.iloc[:, 0].dropna().astype(str).str.strip().unique()
+chapter_options = ["All Chapters"] + sorted(list(raw_chapters))
+
+selected_chapter = st.sidebar.selectbox("Filter by Chapter", options=chapter_options)
+
+# Apply filtration step down to active dataset working framework
+if selected_chapter == "All Chapters":
+    df = df_raw.copy()
+else:
+    df = df_raw[df_raw.iloc[:, 0].astype(str).str.strip() == selected_chapter].copy()
+
+total_rows = len(df)
 
 # ==============================================================================
-# 4. NAVIGATION ENGINE
+# 4. NAVIGATION ENGINE & NEW SIDEBAR WIDGET 2: JUMP TO
 # ==============================================================================
-if "current_deck_id" not in st.session_state or st.session_state.current_deck_id != deck_config["id"]:
-    st.session_state.current_deck_id = deck_config["id"]
+# Reset tracking environments cleanly if the deck selection OR the chapter filter changes
+session_key_deck = f"deck_{deck_config['id']}"
+session_key_chap = f"chap_{selected_chapter}"
+
+if "current_deck_track" not in st.session_state or st.session_state.current_deck_track != (session_key_deck + "_" + session_key_chap):
+    st.session_state.current_deck_track = session_key_deck + "_" + session_key_chap
     st.session_state.history_stack = [0]       
     st.session_state.history_pointer = 0       
     st.session_state.completed_sequential = False
 
-total_rows = len(df)
 current_pointer = st.session_state.history_pointer
 
-if current_pointer >= len(st.session_state.history_stack):
-    st.session_state.history_pointer = len(st.session_state.history_stack) - 1
-    current_pointer = st.session_state.history_pointer
+# ------------------------------------------------------------------------------
+# NEW SIDEBAR WIDGET 2: DYNAMIC JUMP TO GENERATOR
+# ------------------------------------------------------------------------------
+jump_options = []
+if total_rows > 0:
+    # Step by 20 cards starting at indices (0, 20, 40...) mapped out as user display options
+    jump_indices = list(range(0, total_rows, 20))
+    jump_options = [f"Card {i + 1}" for i in jump_indices]
 
-current_row_idx = st.session_state.history_stack[current_pointer]
+# Find where our current flashcard index sits relative to our jump intervals
+current_card_index = st.session_state.history_stack[current_pointer] if current_pointer < len(st.session_state.history_stack) else 0
+closest_jump_idx = 0
+if current_card_index in jump_indices:
+    closest_jump_idx = jump_indices.index(current_card_index)
+else:
+    # Handle mid-interval tracking pointers accurately back to the lower base jump boundary
+    lower_bound_matches = [i for i in jump_indices if i <= current_card_index]
+    if lower_bound_matches:
+        closest_jump_idx = jump_indices.index(max(lower_bound_matches))
 
-if current_row_idx >= total_rows:
-    st.session_state.history_stack = [0]
-    st.session_state.history_pointer = 0
-    current_row_idx = 0
+# Render structural selector widget
+selected_jump_label = st.sidebar.selectbox(
+    "Jump to:", 
+    options=jump_options, 
+    index=min(closest_jump_idx, len(jump_options)-1) if jump_options else 0
+)
+
+# Intercept widget interaction manually to drive navigation framework values forward
+if jump_options:
+    chosen_jump_target_index = jump_indices[jump_options.index(selected_jump_label)]
+    # Check if the chosen jump differs from our state track position to block infinite layout loops
+    if current_card_index != chosen_jump_target_index:
+        st.session_state.history_stack = [chosen_jump_target_index]
+        st.session_state.history_pointer = 0
+        st.session_state.completed_sequential = False
+        st.slots = {} # Flush view renders cleanly
+        st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
+st.sidebar.caption(f"Loaded {len(df_raw)} total entries from sheet.")
+
+current_row_idx = st.session_state.history_stack[st.session_state.history_pointer] if st.session_state.history_pointer < len(st.session_state.history_stack) else 0
 
 def run_next_step(is_randomized):
     if st.session_state.history_pointer < len(st.session_state.history_stack) - 1:
@@ -180,9 +231,11 @@ selected_first_lang = st.selectbox(
 )
 display_mode = (selected_first_lang == lang_1_header)
 
-if st.session_state.completed_sequential:
-    st.warning("🎉 **End of Deck Reached!** You have walked sequentially through every single card in this list.")
-    if st.button("🔄 Start This Deck Over Again", use_container_width=True):
+if total_rows == 0:
+    st.warning("⚠️ No vocabulary items found matching your current search parameters or chapter selection criteria.")
+elif st.session_state.completed_sequential:
+    st.warning("🎉 **End of Deck Reached!** You have walked sequentially through every single card in this filtered view.")
+    if st.button("🔄 Start This Filtered Deck Over", use_container_width=True):
         reset_deck_session()
         st.rerun()
 else:
@@ -232,13 +285,11 @@ else:
     if display_mode:
         top_display_text = card_lang_1
         bottom_display_text = card_lang_2
-        
         top_font_size = user_foreign_size if is_chinese_deck else 24
         bottom_font_size = 22 
     else:
         top_display_text = card_lang_2
         bottom_display_text = card_lang_1
-        
         top_font_size = 22 
         bottom_font_size = user_foreign_size if is_chinese_deck else 24 
 
@@ -257,7 +308,7 @@ else:
     answer_html = f"<div style='color: #FF4B4B; font-size: {bottom_font_size}px; margin-top: 10px; font-weight: normal;'>{bottom_display_text}</div>" if reveal_answer else ""
     phonetics_html = f"<div style='color: #888888; font-size: 22px; margin-top: 10px; font-weight: normal;'>🗣️ {card_phonetics}</div>" if phonetics_visible else ""
 
-    # EXPANDED CANVAS BOUNDARIES: Height bumped to 180px to safely contain long scripts
+    # FIXED CONTAINER EMBED CORE: Locked to height 180px
     card_content_html = f"""
     <style>
         .card-canvas {{
@@ -274,19 +325,14 @@ else:
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             overflow-y: auto;
             box-sizing: border-box;
-            
-            /* Hide default visual scrollbars across standard engines */
-            scrollbar-width: none; /* Firefox */
-            -ms-overflow-style: none;  /* Internet Explorer 10+ */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }}
-        
-        /* Mask Chrome, Safari, and Edge scrollbar tracks completely */
         .card-canvas::-webkit-scrollbar {{
             display: none !important;
             width: 0 !important;
             height: 0 !important;
         }}
-        
         .main-text {{
             font-size: {top_font_size}px; 
             font-weight: normal; 
@@ -344,5 +390,11 @@ else:
     with nav_col2:
         st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
-    # Native, centered bottom index string tracker
-    st.caption(f"Card {current_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}")
+    # DYNAMIC TRACKING METRIC FOOTER NOTE
+    # Shows active position out of total filtered cards, along with total parent deck stats if filtered
+    if selected_chapter == "All Chapters":
+        footer_string = f"Card {st.session_state.history_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}"
+    else:
+        footer_string = f"Card {st.session_state.history_pointer + 1} of {total_rows} in Chapter ({selected_chapter}) &nbsp;|&nbsp; Total Deck: {len(df_raw)}"
+        
+    st.caption(f"<div style='text-align: center;'>{footer_string}</div>", unsafe_allow_html=True)
