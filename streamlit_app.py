@@ -99,7 +99,7 @@ deck_map = {deck["display_name"]: deck for deck in config_data["decks"]}
 selected_deck_name = st.sidebar.selectbox("Choose Vocab List", options=list(deck_map.keys()))
 deck_config = deck_map[selected_deck_name]
 
-if st.sidebar.button("🔄 Force Reload From Google Sheets"):
+if st.sidebar.button("🔄 Reload GoogleSheet"):
     st.cache_data.clear()
     st.rerun()
 
