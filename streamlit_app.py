@@ -4,6 +4,7 @@ import random
 import time
 import toml
 import urllib.parse
+import re
 import streamlit.components.v1 as components
 
 # Force layout optimization for mobile viewports
@@ -116,11 +117,18 @@ except Exception as e:
 st.sidebar.markdown("---")
 
 # ------------------------------------------------------------------------------
-# NEW SIDEBAR WIDGET 1: CHAPTER SELECT
+# HYBRID FLEXIBLE SORTING ALGORITHM FOR ANY CHAPTER STYLE
 # ------------------------------------------------------------------------------
+def flexible_sort_key(text):
+    """Breaks text into chunks of strings and numbers for natural sorting."""
+    return [int(chunk) if chunk.isdigit() else chunk.lower() for chunk in re.split(r'(\d+)', str(text))]
+
 # Extract unique chapters from column 0, stripping whitespace and removing nulls
 raw_chapters = df_raw.iloc[:, 0].dropna().astype(str).str.strip().unique()
-chapter_options = ["All Chapters"] + sorted(list(raw_chapters))
+
+# Apply the flexible sorting key
+sorted_chapters = sorted(list(raw_chapters), key=flexible_sort_key)
+chapter_options = ["All Chapters"] + sorted_chapters
 
 selected_chapter = st.sidebar.selectbox("Filter by Chapter", options=chapter_options)
 
@@ -133,9 +141,8 @@ else:
 total_rows = len(df)
 
 # ==============================================================================
-# 4. NAVIGATION ENGINE & NEW SIDEBAR WIDGET 2: JUMP TO
+# 4. NAVIGATION ENGINE & SIDEBAR WIDGET 2: JUMP TO
 # ==============================================================================
-# Reset tracking environments cleanly if the deck selection OR the chapter filter changes
 session_key_deck = f"deck_{deck_config['id']}"
 session_key_chap = f"chap_{selected_chapter}"
 
@@ -147,42 +154,33 @@ if "current_deck_track" not in st.session_state or st.session_state.current_deck
 
 current_pointer = st.session_state.history_pointer
 
-# ------------------------------------------------------------------------------
-# NEW SIDEBAR WIDGET 2: DYNAMIC JUMP TO GENERATOR
-# ------------------------------------------------------------------------------
 jump_options = []
 if total_rows > 0:
-    # Step by 20 cards starting at indices (0, 20, 40...) mapped out as user display options
     jump_indices = list(range(0, total_rows, 20))
     jump_options = [f"Card {i + 1}" for i in jump_indices]
 
-# Find where our current flashcard index sits relative to our jump intervals
 current_card_index = st.session_state.history_stack[current_pointer] if current_pointer < len(st.session_state.history_stack) else 0
 closest_jump_idx = 0
 if current_card_index in jump_indices:
     closest_jump_idx = jump_indices.index(current_card_index)
 else:
-    # Handle mid-interval tracking pointers accurately back to the lower base jump boundary
     lower_bound_matches = [i for i in jump_indices if i <= current_card_index]
     if lower_bound_matches:
         closest_jump_idx = jump_indices.index(max(lower_bound_matches))
 
-# Render structural selector widget
 selected_jump_label = st.sidebar.selectbox(
     "Jump to:", 
     options=jump_options, 
     index=min(closest_jump_idx, len(jump_options)-1) if jump_options else 0
 )
 
-# Intercept widget interaction manually to drive navigation framework values forward
 if jump_options:
     chosen_jump_target_index = jump_indices[jump_options.index(selected_jump_label)]
-    # Check if the chosen jump differs from our state track position to block infinite layout loops
     if current_card_index != chosen_jump_target_index:
         st.session_state.history_stack = [chosen_jump_target_index]
         st.session_state.history_pointer = 0
         st.session_state.completed_sequential = False
-        st.slots = {} # Flush view renders cleanly
+        st.slots = {} 
         st.rerun()
 
 st.sidebar.markdown("---")
@@ -220,7 +218,6 @@ def reset_deck_session():
 # ==============================================================================
 # 5. STREAMLINED UI DISPLAY (MOBILE OPTIMIZED)
 # ==============================================================================
-# Pull explicit column names directly from your Google Sheet headers
 lang_1_header = str(df.columns[1]).strip()
 lang_2_header = str(df.columns[2]).strip()
 
@@ -241,26 +238,20 @@ elif st.session_state.completed_sequential:
 else:
     active_row = df.iloc[current_row_idx]
     
-    # Safe text conversions to protect against unexpected types
     card_chapter = str(active_row.iloc[0]) if pd.notna(active_row.iloc[0]) else "General"
     card_lang_1  = str(active_row.iloc[1]) if pd.notna(active_row.iloc[1]) else ""
     card_lang_2  = str(active_row.iloc[2]) if pd.notna(active_row.iloc[2]) else ""
     
-    # 4th Column check: Phonetics/Pinyin (Index 3, Column D)
     has_phonetics_col = len(active_row) > 3
     card_phonetics = str(active_row.iloc[3]).strip() if (has_phonetics_col and pd.notna(active_row.iloc[3])) else ""
-    
-    # 5th Column check: Comments/Footnotes (Index 4, Column E)
     card_comment = str(active_row.iloc[4]).strip() if (len(active_row) > 4 and pd.notna(active_row.iloc[4])) else ""
     
-    # Check if the phonetics column contains actual data anywhere across the dataset
     show_phonetics_option = False
     if has_phonetics_col:
         has_real_data = df.iloc[:, 3].dropna().astype(str).str.strip().str.len().gt(0).any()
         if has_real_data:
             show_phonetics_option = True
 
-    # High-density checkbox settings bar: [Answer] [Phonetics] [Random]
     col_ans, col_phon, col_rand = st.columns(3)
     with col_ans:
         reveal_answer = st.checkbox("Show Answer", value=False)
@@ -272,16 +263,13 @@ else:
     with col_rand:
         random_mode = st.checkbox("Random", value=False)
 
-    # Determine deck type
     is_chinese_deck = "zh" in str(deck_config["id"]).lower()
 
-    # Get user specified size for foreign string (defaults to 34 for clear Chinese viewing)
     try:
         user_foreign_size = int(deck_config.get("font_size_px", 34))
     except (ValueError, TypeError):
         user_foreign_size = 34
 
-    # Assign text values and fonts dynamically based on selection orientation
     if display_mode:
         top_display_text = card_lang_1
         bottom_display_text = card_lang_2
@@ -293,9 +281,6 @@ else:
         top_font_size = 22 
         bottom_font_size = user_foreign_size if is_chinese_deck else 24 
 
-    # ==============================================================================
-    # ASYMMETRICAL PHONETICS LOGIC MATRIX IMPLEMENTATION
-    # ==============================================================================
     phonetics_visible = False
     if show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics:
         if display_mode:
@@ -304,15 +289,13 @@ else:
             if reveal_answer:
                 phonetics_visible = True
 
-    # Build layout fragments dynamically with calculated structural font sizes
     answer_html = f"<div style='color: #FF4B4B; font-size: {bottom_font_size}px; margin-top: 10px; font-weight: normal;'>{bottom_display_text}</div>" if reveal_answer else ""
     phonetics_html = f"<div style='color: #888888; font-size: 22px; margin-top: 10px; font-weight: normal;'>🗣️ {card_phonetics}</div>" if phonetics_visible else ""
 
-    # FIXED CONTAINER EMBED CORE: Locked to height 180px
     card_content_html = f"""
     <style>
         .card-canvas {{
-            background-color: #1E1E1E; /* Core Dark Theme */
+            background-color: #1E1E1E; 
             border: 2px solid #36393F;
             border-radius: 12px;
             padding: 15px;
@@ -341,7 +324,7 @@ else:
         }}
         @media (prefers-color-scheme: light) {{
             .card-canvas {{
-                background-color: #F0F2F6; /* Core Light Theme */
+                background-color: #F0F2F6; 
                 border-color: #E0E2E6;
             }}
             .main-text {{
@@ -358,7 +341,6 @@ else:
     """
     components.html(card_content_html, height=186)
 
-    # 🔊 FIXED AUDIO PLAYER: Always reads card_lang_1 (Foreign String)
     lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
     safe_speech_text = card_lang_1.replace("'", "\\'")
     
@@ -383,18 +365,16 @@ else:
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
-    # Pure, native Streamlit navigation buttons row (Forced side-by-side by CSS layout engine)
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, disabled=(current_pointer == 0))
     with nav_col2:
         st.button("Next ➡️", use_container_width=True, on_click=run_next_step, args=(random_mode,))
 
-    # DYNAMIC TRACKING METRIC FOOTER NOTE
-    # Shows active position out of total filtered cards, along with total parent deck stats if filtered
+    # CLEANED HIGHDENSITY METRIC FOOTER
     if selected_chapter == "All Chapters":
         footer_string = f"Card {st.session_state.history_pointer + 1} of {total_rows} &nbsp;|&nbsp; Group: {card_chapter}"
     else:
-        footer_string = f"Card {st.session_state.history_pointer + 1} of {total_rows} in Chapter ({selected_chapter}) &nbsp;|&nbsp; Total Deck: {len(df_raw)}"
+        footer_string = f"Card {st.session_state.history_pointer + 1} of {total_rows} in {selected_chapter} &nbsp;|&nbsp; Total Deck: {len(df_raw)}"
         
     st.caption(f"<div style='text-align: center;'>{footer_string}</div>", unsafe_allow_html=True)
