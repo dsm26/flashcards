@@ -195,26 +195,32 @@ else:
         if show_phonetics_option:
             st.checkbox("Phonetics", key="toggle_phonetics")
 
-    # Map text hierarchy positions based on dropdown choice
-    top_display_text = card_lang_1 if display_mode else card_lang_2
-    bottom_display_text = card_lang_2 if display_mode else card_lang_1
-
-    # Isolate whether this deck uses Chinese characters
+    # Determine deck type
     is_chinese_deck = "zh" in str(deck_config["id"]).lower()
 
-    # Determine dynamic text scaling and weights to prevent clipping layout issues
+    # Get user specified size for foreign string (defaults to 34 for clear Chinese viewing)
+    try:
+        user_foreign_size = int(deck_config.get("font_size_px", 34))
+    except (ValueError, TypeError):
+        user_foreign_size = 34
+
+    # Assign text values and fonts dynamically based on selection orientation
     if display_mode:
-        # Case 1: Foreign Language is at the top
-        if is_chinese_deck:
-            top_font_size = int(deck_config.get("font_size_px", 34)) # Keep Hanzi large
-            top_weight = "normal"
-        else:
-            top_font_size = 24 # Standardize European scripts to fit screen elegantly
-            top_weight = "normal"
+        # Foreign (Lang 1) is at the top, Native (Lang 2) is at the bottom
+        top_display_text = card_lang_1
+        bottom_display_text = card_lang_2
+        
+        top_font_size = user_foreign_size if is_chinese_deck else 24
+        bottom_font_size = 22 # Answer text size for native English
+        bottom_color = "#FF4B4B"
     else:
-        # Case 2: Native translation (English) is at the top
-        top_font_size = 22 # Keeps English compact and drops the heavy weight
-        top_weight = "normal"
+        # Native (Lang 2) is at the top, Foreign (Lang 1) is at the bottom
+        top_display_text = card_lang_2
+        bottom_display_text = card_lang_1
+        
+        top_font_size = 22 # Keep English prompt compact and clean
+        bottom_font_size = user_foreign_size if is_chinese_deck else 24 # Lock Chinese to large font as answer
+        bottom_color = "#FF4B4B" if not is_chinese_deck else "#4CD964" # Distinct bright green for foreign answers if preferred, or keep red
 
     # ==============================================================================
     # ASYMMETRICAL PHONETICS LOGIC MATRIX IMPLEMENTATION
@@ -227,8 +233,8 @@ else:
             if reveal_answer:
                 phonetics_visible = True
 
-    # Match pronunciation guide font size directly to the target English layout specification (22px)
-    answer_html = f"<div style='color: #FF4B4B; font-size: 22px; margin-top: 10px; font-weight: 500;'>{bottom_display_text}</div>" if reveal_answer else ""
+    # Build layout fragments dynamically with calculated structural font sizes
+    answer_html = f"<div style='color: #FF4B4B; font-size: {bottom_font_size}px; margin-top: 10px; font-weight: normal;'>{bottom_display_text}</div>" if reveal_answer else ""
     phonetics_html = f"<div style='color: #888888; font-size: 22px; margin-top: 10px; font-weight: normal;'>🗣️ {card_phonetics}</div>" if phonetics_visible else ""
 
     # Fixed-height canvas frame document utilizing native device color schemes
@@ -251,7 +257,7 @@ else:
         }}
         .main-text {{
             font-size: {top_font_size}px; 
-            font-weight: {top_weight}; 
+            font-weight: normal; 
             color: #FFFFFF; 
             line-height: 1.2;
         }}
