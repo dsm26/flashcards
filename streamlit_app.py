@@ -216,11 +216,9 @@ def run_next_step(is_randomized):
             current_shuff_pos = st.session_state.shuffled_order.index(st.session_state.current_index_pointer)
             next_shuff_pos = current_shuff_pos + 1
             
-            # CHANGED: Instead of stopping the deck, infinite random mode generates a clean new rotation loop
             if next_shuff_pos >= total_rows:
                 new_rotation = list(range(total_rows))
                 random.shuffle(new_rotation)
-                # Avoid immediately displaying the same card twice on rotation cutoff
                 if total_rows > 1 and new_rotation[0] == st.session_state.current_index_pointer:
                     new_rotation[0], new_rotation[-1] = new_rotation[-1], new_rotation[0]
                 st.session_state.shuffled_order = new_rotation
@@ -236,7 +234,6 @@ def run_prev_step(is_randomized):
             st.session_state.current_index_pointer -= 1
             st.session_state.completed_sequential = False
     else:
-        # Move back one step cleanly using the current active random sequence history
         if st.session_state.shuffled_order:
             try:
                 current_shuff_pos = st.session_state.shuffled_order.index(st.session_state.current_index_pointer)
@@ -264,14 +261,20 @@ selected_first_lang = st.selectbox(
 )
 display_mode = (selected_first_lang == lang_1_header)
 
-# Note: st.session_state.completed_sequential only triggers now during true sequential (Non-Random) mode paths
 if total_rows == 0:
     st.warning("⚠️ No vocabulary items found matching your current search parameters or chapter selection criteria.")
 elif st.session_state.completed_sequential and not st.session_state.get("toggle_random_widget", False):
-    st.warning("🎉 **End of Deck Reached!** You have walked sequentially through every single card in this filtered view.")
-    if st.button("🔄 Start This Filtered Deck Over", use_container_width=True):
-        reset_deck_session()
-        st.rerun()
+    # CHANGED: Shortened message banner layout
+    st.warning("🎉 **End of deck reached!**")
+    
+    # CHANGED: Split layout to include Previous button and a "Return to start" choice side-by-side
+    end_col1, end_col2 = st.columns(2)
+    with end_col1:
+        st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, args=(False,))
+    with end_col2:
+        if st.button("Return to start ➡️", use_container_width=True):
+            reset_deck_session()
+            st.rerun()
 else:
     current_row_idx = st.session_state.current_index_pointer
     active_row = df.iloc[current_row_idx]
@@ -299,7 +302,6 @@ else:
         else:
             st.write("")
     with col_rand:
-        # Added tracking key to safeguard dynamic interactive mode transitions cleanly
         random_mode = st.checkbox("Random", value=False, key="toggle_random_widget")
         if not random_mode and st.session_state.shuffled_order:
             st.session_state.shuffled_order = []
@@ -406,7 +408,6 @@ else:
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
-    # Render navigational controls using the auto-rotation arguments
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         is_at_start = False
