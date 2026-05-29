@@ -296,7 +296,6 @@ else:
         if has_real_data:
             show_phonetics_option = True
 
-    # CHANGED: Top control strip is now just a clean 2-column layout for setup toggles
     top_ctrl_1, top_ctrl_2 = st.columns(2)
     with top_ctrl_1:
         if show_phonetics_option:
@@ -331,21 +330,16 @@ else:
         if display_mode:
             phonetics_visible = True
         else:
-            # Postpone phonetic execution state updates safely
-            pass
+            if st.session_state.get("reveal_answer_widget", False):
+                phonetics_visible = True
 
-    # Note: reveal_answer check evaluated down below to dynamically sync structural elements
     is_chinese_deck = "zh" in str(deck_config["id"]).lower()
     lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
     safe_speech_text = card_lang_1.replace("'", "\\'")
 
-    # Generate the primary text canvas layout block
-    # Note: We build the card canvas markup first, but defer printing the final HTML container
-    # until we pull the live interactive value from the newly relocated check box downstream.
     def build_card_html(show_ans):
         ans_markup = f"<div style='color: #FF4B4B; font-size: {bottom_font_size}px; margin-top: 10px; font-weight: normal;'>{bottom_display_text}</div>" if show_ans else ""
         
-        # Recalculate phonetics target tracking visibility state
         phone_visible = False
         if show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics:
             if display_mode or show_ans:
@@ -365,14 +359,20 @@ else:
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                font-family: "Lucida Console", "Courier New", -apple-system, sans-serif;
                 overflow-y: auto;
                 box-sizing: border-box;
                 scrollbar-width: none;
                 -ms-overflow-style: none;
             }}
             .card-canvas::-webkit-scrollbar {{ display: none !important; width: 0 !important; height: 0 !important; }}
-            .main-text {{ font-size: {top_font_size}px; font-weight: normal; color: #FFFFFF; line-height: 1.2; }}
+            .main-text {{ 
+                font-size: {top_font_size}px; 
+                font-weight: normal; 
+                color: #FFFFFF; 
+                line-height: 1.2; 
+                font-family: "Lucida Console", "Courier New", -apple-system, sans-serif !important;
+            }}
             @media (prefers-color-scheme: light) {{
                 .card-canvas {{ background-color: #F0F2F6; border-color: #E0E2E6; }}
                 .main-text {{ color: #111111; }}
@@ -385,14 +385,10 @@ else:
         </div>
         """
 
-    # We placeholder-render the space for the card, or instantiate layout directly. 
-    # To avoid broken states due to code read-order, we allocate the interactive control row now:
     card_container = st.empty()
 
-    # CHANGED: New unified Audio + Answer action row right beneath the card view container
     action_col1, action_col2 = st.columns([1, 2])
     with action_col1:
-        # TTS Module embedded natively inline with clean viewport layouts
         tts_html = f"""
         <div style="text-align: center; margin-top: 6px;">
             <button onclick="speakText()" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;">🔊</button>
@@ -411,17 +407,14 @@ else:
         """
         components.html(tts_html, height=44)
     with action_col2:
-        # CHANGED: Show Answer is now right next to the Speaker, sitting perfectly above the Next button
-        reveal_answer = st.checkbox("Show Answer", value=False)
+        reveal_answer = st.checkbox("Show Answer", value=False, key="reveal_answer_widget")
 
-    # Inject the HTML text cleanly back into our reserved layout canvas slot now that state is defined
     with card_container:
         components.html(build_card_html(reveal_answer), height=186)
 
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
-    # Render positional navigation buttons 
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         is_at_start = False
