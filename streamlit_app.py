@@ -63,6 +63,13 @@ st.markdown(
         pointer-events: none !important;
         inputmode: none !important;
     }
+    
+    /* Custom vertical alignment helper for the speaker and show answer grid */
+    .vertical-center-container {
+        display: flex;
+        align-items: center;
+        height: 100%;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -179,7 +186,6 @@ current_idx = st.session_state.current_index_pointer
 closest_base = max([i for i in jump_indices if i <= current_idx]) if jump_indices else 0
 
 def on_slider_move():
-    # Force updating target frame base accurately
     st.session_state.current_index_pointer = st.session_state.jump_slider_widget
     st.session_state.completed_sequential = False
 
@@ -207,7 +213,6 @@ def run_next_step(is_randomized):
         else:
             st.session_state.current_index_pointer = next_row
     else:
-        # If random mode is on, ensure we have a valid shuffle sequence matching total rows
         if not st.session_state.shuffled_order or len(st.session_state.shuffled_order) != total_rows:
             st.session_state.shuffled_order = list(range(total_rows))
             random.shuffle(st.session_state.shuffled_order)
@@ -264,10 +269,8 @@ display_mode = (selected_first_lang == lang_1_header)
 if total_rows == 0:
     st.warning("⚠️ No vocabulary items found matching your current search parameters or chapter selection criteria.")
 elif st.session_state.completed_sequential and not st.session_state.get("toggle_random_widget", False):
-    # CHANGED: Shortened message banner layout
     st.warning("🎉 **End of deck reached!**")
     
-    # CHANGED: Split layout to include Previous button and a "Return to start" choice side-by-side
     end_col1, end_col2 = st.columns(2)
     with end_col1:
         st.button("⬅️ Previous", use_container_width=True, on_click=run_prev_step, args=(False,))
@@ -293,15 +296,14 @@ else:
         if has_real_data:
             show_phonetics_option = True
 
-    col_ans, col_phon, col_rand = st.columns(3)
-    with col_ans:
-        reveal_answer = st.checkbox("Show Answer", value=False)
-    with col_phon:
+    # CHANGED: Top control strip is now just a clean 2-column layout for setup toggles
+    top_ctrl_1, top_ctrl_2 = st.columns(2)
+    with top_ctrl_1:
         if show_phonetics_option:
             st.checkbox("Phonetics", key="toggle_phonetics")
         else:
             st.write("")
-    with col_rand:
+    with top_ctrl_2:
         random_mode = st.checkbox("Random", value=False, key="toggle_random_widget")
         if not random_mode and st.session_state.shuffled_order:
             st.session_state.shuffled_order = []
@@ -329,85 +331,97 @@ else:
         if display_mode:
             phonetics_visible = True
         else:
-            if reveal_answer:
-                phonetics_visible = True
+            # Postpone phonetic execution state updates safely
+            pass
 
-    answer_html = f"<div style='color: #FF4B4B; font-size: {bottom_font_size}px; margin-top: 10px; font-weight: normal;'>{bottom_display_text}</div>" if reveal_answer else ""
-    phonetics_html = f"<div style='color: #888888; font-size: 22px; margin-top: 10px; font-weight: normal;'>{card_phonetics}</div>" if phonetics_visible else ""
-
-    card_content_html = f"""
-    <style>
-        .card-canvas {{
-            background-color: #1E1E1E; 
-            border: 2px solid #36393F;
-            border-radius: 12px;
-            padding: 15px;
-            text-align: center;
-            height: 180px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            overflow-y: auto;
-            box-sizing: border-box;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-        }}
-        .card-canvas::-webkit-scrollbar {{
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-        }}
-        .main-text {{
-            font-size: {top_font_size}px; 
-            font-weight: normal; 
-            color: #FFFFFF; 
-            line-height: 1.2;
-        }}
-        @media (prefers-color-scheme: light) {{
-            .card-canvas {{
-                background-color: #F0F2F6; 
-                border-color: #E0E2E6;
-            }}
-            .main-text {{
-                color: #111111;
-            }}
-        }}
-    </style>
-
-    <div class="card-canvas">
-        <div class="main-text">{top_display_text}</div>
-        {answer_html}
-        {phonetics_html}
-    </div>
-    """
-    components.html(card_content_html, height=186)
-
+    # Note: reveal_answer check evaluated down below to dynamically sync structural elements
+    is_chinese_deck = "zh" in str(deck_config["id"]).lower()
     lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
     safe_speech_text = card_lang_1.replace("'", "\\'")
-    
-    tts_html = f"""
-    <div style="text-align: center; margin-bottom: 5px;">
-        <button onclick="speakText()" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;">🔊</button>
-    </div>
-    <script>
-    function speakText() {{
-        if ('speechSynthesis' in window) {{
-            window.speechSynthesis.cancel();
-            var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
-            utterance.lang = '{lang_code}';
-            utterance.rate = 0.85;
-            window.speechSynthesis.speak(utterance);
+
+    # Generate the primary text canvas layout block
+    # Note: We build the card canvas markup first, but defer printing the final HTML container
+    # until we pull the live interactive value from the newly relocated check box downstream.
+    def build_card_html(show_ans):
+        ans_markup = f"<div style='color: #FF4B4B; font-size: {bottom_font_size}px; margin-top: 10px; font-weight: normal;'>{bottom_display_text}</div>" if show_ans else ""
+        
+        # Recalculate phonetics target tracking visibility state
+        phone_visible = False
+        if show_phonetics_option and st.session_state.get("toggle_phonetics", False) and card_phonetics:
+            if display_mode or show_ans:
+                phone_visible = True
+        phone_markup = f"<div style='color: #888888; font-size: 22px; margin-top: 10px; font-weight: normal;'>{card_phonetics}</div>" if phone_visible else ""
+
+        return f"""
+        <style>
+            .card-canvas {{
+                background-color: #1E1E1E; 
+                border: 2px solid #36393F;
+                border-radius: 12px;
+                padding: 15px;
+                text-align: center;
+                height: 180px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                overflow-y: auto;
+                box-sizing: border-box;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+            }}
+            .card-canvas::-webkit-scrollbar {{ display: none !important; width: 0 !important; height: 0 !important; }}
+            .main-text {{ font-size: {top_font_size}px; font-weight: normal; color: #FFFFFF; line-height: 1.2; }}
+            @media (prefers-color-scheme: light) {{
+                .card-canvas {{ background-color: #F0F2F6; border-color: #E0E2E6; }}
+                .main-text {{ color: #111111; }}
+            }}
+        </style>
+        <div class="card-canvas">
+            <div class="main-text">{top_display_text}</div>
+            {ans_markup}
+            {phone_markup}
+        </div>
+        """
+
+    # We placeholder-render the space for the card, or instantiate layout directly. 
+    # To avoid broken states due to code read-order, we allocate the interactive control row now:
+    card_container = st.empty()
+
+    # CHANGED: New unified Audio + Answer action row right beneath the card view container
+    action_col1, action_col2 = st.columns([1, 2])
+    with action_col1:
+        # TTS Module embedded natively inline with clean viewport layouts
+        tts_html = f"""
+        <div style="text-align: center; margin-top: 6px;">
+            <button onclick="speakText()" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;">🔊</button>
+        </div>
+        <script>
+        function speakText() {{
+            if ('speechSynthesis' in window) {{
+                window.speechSynthesis.cancel();
+                var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
+                utterance.lang = '{lang_code}';
+                utterance.rate = 0.85;
+                window.speechSynthesis.speak(utterance);
+            }}
         }}
-    }}
-    </script>
-    """
-    components.html(tts_html, height=44)
+        </script>
+        """
+        components.html(tts_html, height=44)
+    with action_col2:
+        # CHANGED: Show Answer is now right next to the Speaker, sitting perfectly above the Next button
+        reveal_answer = st.checkbox("Show Answer", value=False)
+
+    # Inject the HTML text cleanly back into our reserved layout canvas slot now that state is defined
+    with card_container:
+        components.html(build_card_html(reveal_answer), height=186)
 
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
+    # Render positional navigation buttons 
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         is_at_start = False
