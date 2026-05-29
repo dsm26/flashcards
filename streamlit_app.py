@@ -337,6 +337,9 @@ else:
     lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
     safe_speech_text = card_lang_1.replace("'", "\\'")
 
+    # Target-routed font stack to fix Pinyin accent shifting on Chinese/Asian decks
+    card_font_family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' if is_chinese_deck else '"Lucida Console", "Courier New", -apple-system, sans-serif'
+
     def build_card_html(show_ans):
         ans_markup = f"<div style='color: #FF4B4B; font-size: {bottom_font_size}px; margin-top: 10px; font-weight: normal;'>{bottom_display_text}</div>" if show_ans else ""
         
@@ -359,7 +362,6 @@ else:
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
-                font-family: "Lucida Console", "Courier New", -apple-system, sans-serif;
                 overflow-y: auto;
                 box-sizing: border-box;
                 scrollbar-width: none;
@@ -371,7 +373,7 @@ else:
                 font-weight: normal; 
                 color: #FFFFFF; 
                 line-height: 1.2; 
-                font-family: "Lucida Console", "Courier New", -apple-system, sans-serif !important;
+                font-family: {card_font_family} !important;
             }}
             @media (prefers-color-scheme: light) {{
                 .card-canvas {{ background-color: #F0F2F6; border-color: #E0E2E6; }}
