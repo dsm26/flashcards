@@ -150,7 +150,7 @@ session_key_deck = f"deck_{deck_config['id']}"
 session_key_chap = f"chap_{selected_chapter}"
 current_track_id = session_key_deck + "_" + session_key_chap
 
-# FIRST: Ensure state variables exist to prevent baseline AttributErrors
+# FIRST: Ensure state variables exist to prevent baseline AttributeError
 if "current_index_pointer" not in st.session_state:
     st.session_state.current_index_pointer = 0
 
@@ -207,17 +207,24 @@ def run_next_step(is_randomized):
         else:
             st.session_state.current_index_pointer = next_row
     else:
-        # If random mode is on, advance via our persistent shuffled index queue
+        # If random mode is on, ensure we have a valid shuffle sequence matching total rows
         if not st.session_state.shuffled_order or len(st.session_state.shuffled_order) != total_rows:
             st.session_state.shuffled_order = list(range(total_rows))
             random.shuffle(st.session_state.shuffled_order)
             
         try:
-            # Find where we are in the randomized list, then move to the next position
             current_shuff_pos = st.session_state.shuffled_order.index(st.session_state.current_index_pointer)
             next_shuff_pos = current_shuff_pos + 1
+            
+            # CHANGED: Instead of stopping the deck, infinite random mode generates a clean new rotation loop
             if next_shuff_pos >= total_rows:
-                st.session_state.completed_sequential = True
+                new_rotation = list(range(total_rows))
+                random.shuffle(new_rotation)
+                # Avoid immediately displaying the same card twice on rotation cutoff
+                if total_rows > 1 and new_rotation[0] == st.session_state.current_index_pointer:
+                    new_rotation[0], new_rotation[-1] = new_rotation[-1], new_rotation[0]
+                st.session_state.shuffled_order = new_rotation
+                st.session_state.current_index_pointer = st.session_state.shuffled_order[0]
             else:
                 st.session_state.current_index_pointer = st.session_state.shuffled_order[next_shuff_pos]
         except ValueError:
@@ -229,7 +236,7 @@ def run_prev_step(is_randomized):
             st.session_state.current_index_pointer -= 1
             st.session_state.completed_sequential = False
     else:
-        # Move back one step using the exact same random sequence
+        # Move back one step cleanly using the current active random sequence history
         if st.session_state.shuffled_order:
             try:
                 current_shuff_pos = st.session_state.shuffled_order.index(st.session_state.current_index_pointer)
@@ -257,15 +264,15 @@ selected_first_lang = st.selectbox(
 )
 display_mode = (selected_first_lang == lang_1_header)
 
+# Note: st.session_state.completed_sequential only triggers now during true sequential (Non-Random) mode paths
 if total_rows == 0:
     st.warning("⚠️ No vocabulary items found matching your current search parameters or chapter selection criteria.")
-elif st.session_state.completed_sequential:
-    st.warning("🎉 **End of Deck Reached!** You have walked through every card in this filtered view.")
+elif st.session_state.completed_sequential and not st.session_state.get("toggle_random_widget", False):
+    st.warning("🎉 **End of Deck Reached!** You have walked sequentially through every single card in this filtered view.")
     if st.button("🔄 Start This Filtered Deck Over", use_container_width=True):
         reset_deck_session()
         st.rerun()
 else:
-    # Safely align selected track layout targets
     current_row_idx = st.session_state.current_index_pointer
     active_row = df.iloc[current_row_idx]
     
@@ -292,8 +299,8 @@ else:
         else:
             st.write("")
     with col_rand:
-        random_mode = st.checkbox("Random", value=False)
-        # Clear specific shuffled tracking lists if random gets untoggled
+        # Added tracking key to safeguard dynamic interactive mode transitions cleanly
+        random_mode = st.checkbox("Random", value=False, key="toggle_random_widget")
         if not random_mode and st.session_state.shuffled_order:
             st.session_state.shuffled_order = []
 
@@ -399,7 +406,7 @@ else:
     if reveal_answer and card_comment != "":
         st.info(f"💡 **Note:** {card_comment}")
 
-    # Render navigational controls using the updated look-back routing arguments
+    # Render navigational controls using the auto-rotation arguments
     nav_col1, nav_col2 = st.columns(2)
     with nav_col1:
         is_at_start = False
