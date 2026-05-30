@@ -287,8 +287,26 @@ else:
     card_lang_2  = str(active_row.iloc[2]) if pd.notna(active_row.iloc[2]) else ""
     
     has_phonetics_col = len(active_row) > 3
-    card_phonetics = str(active_row.iloc[3]).strip() if (has_phonetics_col and pd.notna(active_row.iloc[3])) else ""
-    card_comment = str(active_row.iloc[4]).strip() if (len(active_row) > 4 and pd.notna(active_row.iloc[4])) else ""
+    
+    # Hardened multi-stage extraction logic to safely catch and contain float NaN silences
+    card_phonetics = ""
+    card_comment = ""
+    
+    try:
+        if has_phonetics_col and pd.notna(active_row.iloc[3]):
+            val_3 = str(active_row.iloc[3]).strip()
+            if val_3.lower() != "nan":
+                card_phonetics = val_3
+    except Exception:
+        card_phonetics = ""
+
+    try:
+        if len(active_row) > 4 and pd.notna(active_row.iloc[4]):
+            val_4 = str(active_row.iloc[4]).strip()
+            if val_4.lower() != "nan":
+                card_comment = val_4
+    except Exception:
+        card_comment = ""
     
     show_phonetics_option = False
     if has_phonetics_col:
