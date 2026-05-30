@@ -409,17 +409,19 @@ else:
 
     action_col1, action_col2 = st.columns([1, 2])
     with action_col1:
+        # Reordered inner components: Turtle button renders first on the left, normal speaker second
         tts_html = f"""
-        <div style="text-align: center; margin-top: 6px;">
-            <button onclick="speakText()" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;">🔊</button>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 6px;">
+            <button onclick="speakText(0.55)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;" title="Slow Speed">🐢</button>
+            <button onclick="speakText(0.85)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;" title="Normal Speed">🔊</button>
         </div>
         <script>
-        function speakText() {{
+        function speakText(playbackRate) {{
             if ('speechSynthesis' in window) {{
                 window.speechSynthesis.cancel();
                 var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
                 utterance.lang = '{lang_code}';
-                utterance.rate = 0.85;
+                utterance.rate = playbackRate;
                 window.speechSynthesis.speak(utterance);
             }}
         }}
