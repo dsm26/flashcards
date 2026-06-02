@@ -150,6 +150,22 @@ else:
 
 total_rows = len(df)
 
+# ------------------------------------------------------------------------------
+# DYNAMIC AUDIO SPEED CONFIGURATION SLIDER
+# ------------------------------------------------------------------------------
+slow_speed_percent = st.sidebar.slider(
+    "🐢 Turtle Speaker Speed", 
+    min_value=10, 
+    max_value=90, 
+    value=30, 
+    step=5,
+    format="%d%%"
+)
+# Convert the percentage into a readable decimal format for the browser Web Speech API (e.g. 55% -> 0.55)
+calculated_slow_rate = slow_speed_percent / 100.0
+
+st.sidebar.markdown("---")
+
 # ==============================================================================
 # 4. FIXED CORE NAVIGATION ENGINE & SLIDER JUMP INTELLIGENCE
 # ==============================================================================
@@ -409,10 +425,10 @@ else:
 
     action_col1, action_col2 = st.columns([1, 2])
     with action_col1:
-        # Reordered inner components: Turtle button renders first on the left, normal speaker second
+        # Flipped inner components layout flow with user's slider value tied directly into the HTML click context
         tts_html = f"""
         <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 6px;">
-            <button onclick="speakText(0.55)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;" title="Slow Speed">🐢</button>
+            <button onclick="speakText({calculated_slow_rate})" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;" title="Slow Speed">🐢</button>
             <button onclick="speakText(0.85)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;" title="Normal Speed">🔊</button>
         </div>
         <script>
