@@ -6,9 +6,9 @@ worksheet_name = "Language Transfer"
 
 [[decks]]
 id = "it_phrases"
-display_name = "Italian: Phrases"
+display_name = "Italian: Words"
 spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
-worksheet_name = "Phrases"
+worksheet_name = "Duolingo"
 
 [[decks]]
 id = "zh_hsk1"
