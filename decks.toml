@@ -5,6 +5,12 @@ spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
 worksheet_name = "Language Transfer"
 
 [[decks]]
+id = "it_basic2"
+display_name = "Italian: Language Transfer Part 2"
+spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
+worksheet_name = "Language Transfer Part 2"
+
+[[decks]]
 id = "it_phrases"
 display_name = "Italian: Words"
 spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
