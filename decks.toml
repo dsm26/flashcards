@@ -17,6 +17,12 @@ spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
 worksheet_name = "Duolingo"
 
 [[decks]]
+id = "it_top1000"
+display_name = "Italian: Top 1000"
+spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
+worksheet_name = "Top 1000"
+
+[[decks]]
 id = "zh_hsk1"
 display_name = "Chinese: Duolingo"
 spreadsheet_id = "104ptZ30KpS9hP4JOuFl5wf2z5leN7DickYvzwno0GMs"
