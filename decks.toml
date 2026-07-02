@@ -11,6 +11,12 @@ spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
 worksheet_name = "Language Transfer Part 2"
 
 [[decks]]
+id = "it_noble1"
+display_name = "Paul Noble: Learn Italian"
+spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
+worksheet_name = "Paul Noble"
+
+[[decks]]
 id = "it_phrases"
 display_name = "Italian: Words"
 spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
