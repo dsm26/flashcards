@@ -105,6 +105,7 @@ st.sidebar.title("App Settings")
 deck_map = {deck["display_name"]: deck for deck in config_data["decks"]}
 selected_deck_name = st.sidebar.selectbox("Choose Vocab List", options=list(deck_map.keys()))
 deck_config = deck_map[selected_deck_name]
+deck_lang_code = "it-IT" if "it" in str(deck_config["id"]).lower() else "zh-CN" if "zh" in str(deck_config["id"]).lower() else "en-US"
 
 if st.sidebar.button("Reload GoogleSheet"):
     st.cache_data.clear()
@@ -219,6 +220,64 @@ st.sidebar.select_slider(
 st.sidebar.markdown("---")
 st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
 st.sidebar.caption(f"Loaded {len(df_raw)} total entries from sheet.")
+
+# ------------------------------------------------------------------------------
+# SHOW AVAILABLE SPEECH VOICES FOR THE CURRENT DECK LANGUAGE
+# ------------------------------------------------------------------------------
+voice_list_html = f"""
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px;">
+    <div style="font-weight: 600; margin-bottom: 6px;">Available Voices ({deck_lang_code})</div>
+    <div id="voice-list">Loading voices...</div>
+</div>
+<script>
+(function() {{
+    const targetLang = "{deck_lang_code}".toLowerCase();
+
+    function isMatchingVoice(voice) {{
+        const lang = voice.lang.toLowerCase().replace("_", "-");
+
+        if (targetLang === "zh-cn") {{
+            return lang === "zh-cn" || lang === "zh-hans" || lang === "zh-sg";
+        }}
+
+        return lang === targetLang || lang.startsWith(targetLang.split("-")[0] + "-");
+    }}
+
+    function getDeckVoices() {{
+        return window.speechSynthesis.getVoices().filter(isMatchingVoice);
+    }}
+
+    function chooseVoice(voices) {{
+        return voices.find(v => v.lang.toLowerCase().replace("_", "-") === targetLang && v.default)
+            || voices.find(v => v.lang.toLowerCase().replace("_", "-") === targetLang)
+            || voices.find(v => v.default)
+            || voices[0];
+    }}
+
+    function renderVoices() {{
+        const container = document.getElementById("voice-list");
+        const voices = getDeckVoices();
+
+        if (!voices.length) {{
+            container.innerHTML = "No matching voices found.";
+            return;
+        }}
+
+        const chosen = chooseVoice(voices);
+
+        container.innerHTML = voices.map(function(v) {{
+            const marker = v === chosen ? "* " : "&nbsp;&nbsp;";
+            return marker + v.name + " <span style='color:#888;'>(" + v.lang + ")</span>";
+        }}).join("<br>");
+    }}
+
+    renderVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", renderVoices);
+}})();
+</script>
+"""
+with st.sidebar:
+    components.html(voice_list_html, height=180)
 
 # Navigation Step Handlers
 def run_next_step(is_randomized):
@@ -432,11 +491,41 @@ else:
             <button onclick="speakText(0.85)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;" title="Normal Speed">🔊</button>
         </div>
         <script>
+        function isMatchingVoice(voice) {{
+            var targetLang = '{lang_code}'.toLowerCase();
+            var voiceLang = voice.lang.toLowerCase().replace('_', '-');
+
+            if (targetLang === 'zh-cn') {{
+                return voiceLang === 'zh-cn' || voiceLang === 'zh-hans' || voiceLang === 'zh-sg';
+            }}
+
+            return voiceLang === targetLang || voiceLang.startsWith(targetLang.split('-')[0] + '-');
+        }}
+
+        function chooseVoice(voices) {{
+            var targetLang = '{lang_code}'.toLowerCase();
+
+            return voices.find(function(v) {{
+                return v.lang.toLowerCase().replace('_', '-') === targetLang && v.default;
+            }}) || voices.find(function(v) {{
+                return v.lang.toLowerCase().replace('_', '-') === targetLang;
+            }}) || voices.find(function(v) {{
+                return v.default && isMatchingVoice(v);
+            }}) || voices.find(isMatchingVoice);
+        }}
+
         function speakText(playbackRate) {{
             if ('speechSynthesis' in window) {{
                 window.speechSynthesis.cancel();
+
+                var voices = window.speechSynthesis.getVoices();
+                var selectedVoice = chooseVoice(voices);
+
                 var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
                 utterance.lang = '{lang_code}';
+                if (selectedVoice) {{
+                    utterance.voice = selectedVoice;
+                }}
                 utterance.rate = playbackRate;
                 window.speechSynthesis.speak(utterance);
             }}
