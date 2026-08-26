@@ -391,10 +391,7 @@ else:
 
     top_ctrl_1, top_ctrl_2 = st.columns(2)
     with top_ctrl_1:
-        if show_phonetics_option:
-            st.checkbox("Phonetics", key="toggle_phonetics")
-        else:
-            st.write("")
+        st.write("")
     with top_ctrl_2:
         random_mode = st.checkbox("Random", value=False, key="toggle_random_widget")
         if not random_mode and st.session_state.shuffled_order:
@@ -535,6 +532,8 @@ else:
         components.html(tts_html, height=44)
     with action_col2:
         reveal_answer = st.checkbox("Show Answer", value=False, key="reveal_answer_widget")
+        if show_phonetics_option:
+            st.checkbox("Phonetics", key="toggle_phonetics")
 
     with card_container:
         components.html(build_card_html(reveal_answer), height=186)
